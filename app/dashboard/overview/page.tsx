@@ -13,7 +13,7 @@ import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianG
 import { formatCurrency } from '@/lib/aave/helpers';
 
 async function getOverviewData() {
-    const res = await fetch('/api/aave/overview');
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/aave/overview`);
     if (!res.ok) throw new Error('Failed to fetch data');
     return res.json();
 }

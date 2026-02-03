@@ -20,7 +20,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 async function getLiquidationsData(page: number, pageSize: number) {
-    const res = await fetch(`/api/aave/liquidations?page=${page}&pageSize=${pageSize}`);
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/aave/liquidations?page=${page}&pageSize=${pageSize}`);
     if (!res.ok) throw new Error('Failed to fetch liquidations data');
     return res.json();
 }

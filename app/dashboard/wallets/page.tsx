@@ -21,7 +21,7 @@ import { formatCurrency, formatAddress, getHealthFactorStatus } from '@/lib/aave
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 
 async function getWalletsData(page: number, pageSize: number) {
-    const res = await fetch(`/api/aave/wallets?page=${page}&pageSize=${pageSize}`);
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/aave/wallets?page=${page}&pageSize=${pageSize}`);
     if (!res.ok) throw new Error('Failed to fetch wallets data');
     return res.json();
 }

@@ -22,7 +22,7 @@ import { Search, TrendingUp, TrendingDown } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 async function getMarketsData() {
-    const res = await fetch('/api/aave/markets');
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/aave/markets`);
     if (!res.ok) throw new Error('Failed to fetch markets data');
     return res.json();
 }

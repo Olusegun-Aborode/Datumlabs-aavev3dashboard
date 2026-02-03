@@ -10,19 +10,19 @@ import { Sparkles, TrendingUp, AlertTriangle, Wallet, DollarSign, Activity } fro
 import Image from 'next/image';
 
 async function getOverviewData() {
-    const res = await fetch('/api/aave/overview');
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/aave/overview`);
     if (!res.ok) throw new Error('Failed to fetch data');
     return res.json();
 }
 
 async function getMarketsData() {
-    const res = await fetch('/api/aave/markets');
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/aave/markets`);
     if (!res.ok) throw new Error('Failed to fetch markets data');
     return res.json();
 }
 
 async function getWalletsData() {
-    const res = await fetch('/api/aave/wallets?page=1&pageSize=100');
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/aave/wallets?page=1&pageSize=100`);
     if (!res.ok) throw new Error('Failed to fetch wallets data');
     return res.json();
 }
