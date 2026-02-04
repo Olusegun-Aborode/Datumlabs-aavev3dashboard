@@ -50,11 +50,11 @@ export async function GET() {
                 rates: [
                     {
                         side: 'LENDER',
-                        rate: supplyRate ? parseFloat(supplyRate.rate) / 1e25 : 0,
+                        rate: supplyRate ? parseFloat(supplyRate.rate) : 0,
                     },
                     {
                         side: 'BORROWER',
-                        rate: borrowRate ? parseFloat(borrowRate.rate) / 1e25 : 0,
+                        rate: borrowRate ? parseFloat(borrowRate.rate) : 0,
                     }
                 ],
                 utilization: utilization * 100, // Convert to percentage
