@@ -108,12 +108,12 @@ export default function MarketsPage() {
                 <Card>
                     <CardHeader className="pb-3">
                         <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Total Markets
+                            Total Supply
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{data.markets.length}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Active lending markets</p>
+                        <div className="text-2xl font-bold">{formatCurrency(totalSupply)}</div>
+                        <p className="text-xs text-muted-foreground mt-1">Across {data.markets.length} markets</p>
                     </CardContent>
                 </Card>
                 <Card>
