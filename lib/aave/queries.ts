@@ -44,6 +44,7 @@ export const GET_MARKETS = gql`
       }
       totalValueLockedUSD
       totalBorrowBalanceUSD
+      totalDepositBalanceUSD
       inputTokenPriceUSD
       rates {
         rate

@@ -27,7 +27,8 @@ export async function GET() {
         // Transform market data
         const markets = data.markets.map((market: any) => {
             // Find supply and borrow rates
-            const supplyRate = market.rates.find((r: any) => r.side === 'LENDER' && r.type === 'VARIABLE');
+            // For supply (LENDER), we take the first available rate (usually type is LIQUIDITY or VARIABLE)
+            const supplyRate = market.rates.find((r: any) => r.side === 'LENDER');
             const borrowRate = market.rates.find((r: any) => r.side === 'BORROWER' && r.type === 'VARIABLE');
 
             const tvl = parseFloat(market.totalValueLockedUSD);
