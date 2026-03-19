@@ -63,8 +63,8 @@ export default function EmailGate({ children }: { children: React.ReactNode }) {
                 {children}
             </div>
 
-            {/* Gate overlay */}
-            <div className="absolute inset-0 flex items-center justify-center bg-[#0B0D0F]/70 backdrop-blur-sm">
+            {/* Gate overlay — fixed to viewport */}
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B0D0F]/70 backdrop-blur-sm">
                 <div className="tui-panel max-w-md w-full mx-4">
                     <div className="tui-panel-header">
                         <span className="tui-panel-title">Access Required</span>
