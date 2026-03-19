@@ -8,10 +8,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const [queryClient] = useState(() => new QueryClient({
         defaultOptions: {
             queries: {
-                staleTime: 15 * 1000, // Data is fresh for 15 seconds
-                gcTime: 30 * 1000, // Cache persists for 30 seconds (formerly cacheTime)
+                staleTime: 60 * 1000, // Data is fresh for 60 seconds
+                gcTime: 5 * 60 * 1000, // Cache persists for 5 minutes
                 refetchOnWindowFocus: false, // Don't refetch when window regains focus
-                retry: 1, // Retry failed requests once
+                retry: 2, // Retry failed requests twice
+                retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
             },
         },
     }));

@@ -1,20 +1,28 @@
-// components/aave-dashboard/ErrorState.tsx
-import { AlertCircle } from 'lucide-react';
+'use client';
 
 interface ErrorStateProps {
     message?: string;
 }
 
-export function ErrorState({ message = 'Failed to load data' }: ErrorStateProps) {
+export function ErrorState({ message = "Failed to load data." }: ErrorStateProps) {
     return (
-        <div className="flex items-center justify-center h-64">
-            <div className="flex flex-col items-center gap-2 text-center">
-                <AlertCircle className="h-12 w-12 text-red-500" />
-                <h3 className="text-lg font-semibold">Error</h3>
-                <p className="text-sm text-muted-foreground max-w-md">{message}</p>
+        <div className="tui-panel">
+            <div className="tui-panel-header">
+                <span className="tui-panel-title">Error</span>
+                <span className="text-[10px]" style={{ color: "var(--accent-red)" }}>ERR</span>
+            </div>
+            <div className="p-4 lg:p-5">
+                <p className="text-xs mb-3" style={{ color: "var(--accent-red)" }}>
+                    {message}
+                </p>
                 <button
                     onClick={() => window.location.reload()}
-                    className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                    className="text-[10px] uppercase tracking-[0.1em] px-3 py-1.5 rounded transition-colors"
+                    style={{
+                        border: "1px solid var(--border-bright)",
+                        color: "var(--text-muted)",
+                        background: "var(--card)",
+                    }}
                 >
                     Retry
                 </button>

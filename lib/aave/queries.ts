@@ -13,6 +13,7 @@ export const GET_PROTOCOL_DATA = gql`
       totalValueLockedUSD
       totalBorrowBalanceUSD
       totalPoolCount
+      cumulativeUniqueUsers
       cumulativeSupplySideRevenueUSD
       cumulativeProtocolSideRevenueUSD
     }

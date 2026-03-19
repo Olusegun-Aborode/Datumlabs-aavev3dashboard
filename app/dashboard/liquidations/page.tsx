@@ -5,22 +5,14 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LoadingState } from '@/components/aave-dashboard/LoadingState';
 import { ErrorState } from '@/components/aave-dashboard/ErrorState';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import TuiPanel, { TuiDivider } from '@/components/aave-dashboard/TuiPanel';
+import ChartWrapper from '@/components/aave-dashboard/ChartWrapper';
 import { formatCurrency, formatAddress, formatDateTime } from '@/lib/aave/helpers';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
-async function getLiquidationsData(page: number, pageSize: number) {
-    const res = await fetch(`/api/aave/liquidations?page=${page}&pageSize=${pageSize}`);
+async function getLiquidationsData(page: number, pageSize: number, chain?: string) {
+    const chainParam = chain && chain !== 'all' ? `&chain=${chain}` : '';
+    const res = await fetch(`/api/aave/liquidations?page=${page}&pageSize=${pageSize}${chainParam}`);
     if (!res.ok) throw new Error('Failed to fetch liquidations data');
     return res.json();
 }
@@ -28,10 +20,11 @@ async function getLiquidationsData(page: number, pageSize: number) {
 export default function LiquidationsPage() {
     const [page, setPage] = useState(1);
     const pageSize = 50;
+    const [chain, setChain] = useState<string>('all');
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['liquidationsData', page, pageSize],
-        queryFn: () => getLiquidationsData(page, pageSize),
+        queryKey: ['liquidationsData', page, pageSize, chain],
+        queryFn: () => getLiquidationsData(page, pageSize, chain),
     });
 
     if (isLoading) return <LoadingState />;
@@ -41,155 +34,162 @@ export default function LiquidationsPage() {
     const aggregations = data.aggregations;
 
     return (
-        <div className="space-y-6">
-            {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-2">
-                <Card>
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Total Liquidated (This Page)
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-red-600">
-                            {formatCurrency(aggregations.totalLiquidatedUSD)}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            {aggregations.totalCount} liquidation events
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Most Liquidated Asset
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {aggregations.byAsset.length > 0 && (
-                            <>
-                                <div className="text-2xl font-bold">
-                                    {aggregations.byAsset[0].symbol}
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    {formatCurrency(aggregations.byAsset[0].totalUSD)} • {aggregations.byAsset[0].count} events
-                                </p>
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
+        <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+                <h2 className="text-sm font-bold uppercase tracking-[0.1em]" style={{ color: "var(--foreground)" }}>
+                    Liquidations
+                </h2>
+                <div className="flex items-center gap-2">
+                    {[
+                        { id: 'all', label: 'ALL' },
+                        { id: 'ethereum', label: 'ETH' },
+                        { id: 'arbitrum', label: 'ARB' },
+                        { id: 'base', label: 'BASE' },
+                        { id: 'optimism', label: 'OP' },
+                        { id: 'polygon', label: 'POLY' },
+                        { id: 'avalanche', label: 'AVAX' },
+                    ].map((c) => (
+                        <button
+                            key={c.id}
+                            onClick={() => { setChain(c.id); setPage(1); }}
+                            className={`chain-badge ${chain === c.id ? 'active' : ''}`}
+                        >
+                            {c.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
-            {/* Liquidations by Asset Chart */}
-            {aggregations.byAsset.length > 0 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Liquidations by Asset</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                            Total liquidated value per asset (current page)
+            {/* Summary counters */}
+            <div className="tui-panel">
+                <div className="tui-panel-header">
+                    <span className="tui-panel-title">Liquidation Summary</span>
+                    <span className="tui-panel-badge">Page {page}</span>
+                </div>
+                <div className="grid grid-cols-2">
+                    <div className="p-4 lg:p-5 border-r" style={{ borderColor: "var(--border)" }}>
+                        <p className="counter-label">Total Liquidated</p>
+                        <p className="counter-value" style={{ color: "var(--accent-red)" }}>
+                            {formatCurrency(aggregations.totalLiquidatedUSD)}
                         </p>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={aggregations.byAsset.slice(0, 10)}>
-                                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                                    <XAxis dataKey="symbol" tick={{ fontSize: 12 }} />
-                                    <YAxis
-                                        tick={{ fontSize: 12 }}
-                                        tickFormatter={(value) => `$${(value / 1e6).toFixed(1)}M`}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
-                                        formatter={(value: any) => [formatCurrency(Number(value || 0)), 'Total USD']}
-                                    />
-                                    <Bar dataKey="totalUSD" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </CardContent>
-                </Card>
+                        <span className="text-[9px]" style={{ color: "var(--text-muted)" }}>{aggregations.totalCount} events</span>
+                    </div>
+                    <div className="p-4 lg:p-5">
+                        <p className="counter-label">Most Liquidated</p>
+                        {aggregations.byAsset.length > 0 && (
+                            <>
+                                <p className="counter-value" style={{ color: "var(--accent-orange)" }}>
+                                    {aggregations.byAsset[0].symbol}
+                                </p>
+                                <span className="text-[9px]" style={{ color: "var(--text-muted)" }}>
+                                    {formatCurrency(aggregations.byAsset[0].totalUSD)} · {aggregations.byAsset[0].count} events
+                                </span>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Bar chart */}
+            {aggregations.byAsset.length > 0 && (
+                <ChartWrapper title="Liquidations by Asset" badge="Top 10" height="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={aggregations.byAsset.slice(0, 10)}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                            <XAxis
+                                dataKey="symbol"
+                                tick={{ fontSize: 10, fill: '#6B7280' }}
+                                axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+                                tickLine={false}
+                            />
+                            <YAxis
+                                tick={{ fontSize: 10, fill: '#6B7280' }}
+                                tickFormatter={(value) => `$${(value / 1e6).toFixed(1)}M`}
+                                axisLine={false}
+                                tickLine={false}
+                            />
+                            <Tooltip
+                                contentStyle={{
+                                    background: 'var(--card)',
+                                    border: '1px solid var(--border-bright)',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    color: 'var(--foreground)',
+                                }}
+                                formatter={(value: number | undefined) => [formatCurrency(Number(value ?? 0)), 'Total USD']}
+                            />
+                            <Bar dataKey="totalUSD" fill="#FF4444" radius={[2, 2, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </ChartWrapper>
             )}
 
-            {/* Liquidations Table */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Recent Liquidations</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                        Showing {liquidations.length} liquidation events (Page {page})
-                    </p>
-                </CardHeader>
-                <CardContent>
-                    <div className="rounded-md border">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Asset</TableHead>
-                                    <TableHead className="text-right">Amount</TableHead>
-                                    <TableHead className="text-right">Value (USD)</TableHead>
-                                    <TableHead>Liquidatee</TableHead>
-                                    <TableHead>Liquidator</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {liquidations.map((liquidation: any) => (
-                                    <TableRow key={liquidation.id}>
-                                        <TableCell className="text-sm">
-                                            {formatDateTime(liquidation.timestamp)}
-                                        </TableCell>
-                                        <TableCell>
-                                            <div>
-                                                <div className="font-semibold">{liquidation.asset.symbol}</div>
-                                                <div className="text-xs text-muted-foreground">{liquidation.market}</div>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-right font-medium">
-                                            {liquidation.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                                        </TableCell>
-                                        <TableCell className="text-right font-bold text-red-600">
-                                            {formatCurrency(liquidation.amountUSD)}
-                                        </TableCell>
-                                        <TableCell className="font-mono text-xs">
-                                            {formatAddress(liquidation.liquidatee)}
-                                        </TableCell>
-                                        <TableCell className="font-mono text-xs">
-                                            {formatAddress(liquidation.liquidator)}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+            <TuiDivider label="Recent Events" />
 
-                    {/* Pagination */}
-                    <div className="flex items-center justify-between mt-4">
-                        <div className="text-sm text-muted-foreground">
-                            Page {page} {data.hasMore && '• More available'}
-                        </div>
-                        <div className="flex gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage(p => Math.max(1, p - 1))}
-                                disabled={page === 1}
-                            >
-                                <ChevronLeft className="h-4 w-4 mr-1" />
-                                Previous
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage(p => p + 1)}
-                                disabled={!data.hasMore}
-                            >
-                                Next
-                                <ChevronRight className="h-4 w-4 ml-1" />
-                            </Button>
-                        </div>
+            {/* Liquidation events table */}
+            <TuiPanel title="Liquidation Events" badge={`${liquidations.length} events`} noPadding>
+                <div className="overflow-x-auto">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Asset</th>
+                                <th className="text-right">Amount</th>
+                                <th className="text-right">Value (USD)</th>
+                                <th>Liquidatee</th>
+                                <th>Liquidator</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {liquidations.map((liq: any) => (
+                                <tr key={liq.id}>
+                                    <td className="text-xs">{formatDateTime(liq.timestamp)}</td>
+                                    <td>
+                                        <span className="font-semibold">{liq.asset.symbol}</span>
+                                        {liq.chain && (
+                                            <span className="ml-1 text-[9px]" style={{ color: "var(--accent-blue)" }}>
+                                                [{({ ethereum: 'ETH', arbitrum: 'ARB', base: 'BASE', optimism: 'OP', polygon: 'POLY', avalanche: 'AVAX' } as Record<string, string>)[liq.chain] || liq.chain}]
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td className="text-right font-mono">
+                                        {liq.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                    </td>
+                                    <td className="text-right font-bold" style={{ color: "var(--accent-red)" }}>
+                                        {formatCurrency(liq.amountUSD)}
+                                    </td>
+                                    <td className="font-mono text-[11px]">{formatAddress(liq.liquidatee)}</td>
+                                    <td className="font-mono text-[11px]">{formatAddress(liq.liquidator)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Pagination */}
+                <div className="px-4 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)" }}>
+                    <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                        Page {page} {data.hasMore && '· More available'}
+                    </span>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                            className="time-btn disabled:opacity-30"
+                        >
+                            ← Prev
+                        </button>
+                        <button
+                            onClick={() => setPage(p => p + 1)}
+                            disabled={!data.hasMore}
+                            className="time-btn disabled:opacity-30"
+                        >
+                            Next →
+                        </button>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </TuiPanel>
         </div>
     );
 }

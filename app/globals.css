@@ -1,166 +1,343 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+:root,
+.dark {
+  --background: #0B0D0F;
+  --foreground: #E0E0E0;
+  --card: #111318;
+  --card-hover: #1A1E24;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-bright: rgba(255, 255, 255, 0.15);
+  --text-muted: #6B7280;
+  --accent-orange: #FF6B35;
+  --accent-red: #FF4444;
+  --accent-blue: #5B7FFF;
+  --accent-green: #10B981;
+  --accent-purple: #B44AFF;
+  --accent-cyan: #00D4FF;
+  --accent-yellow: #F59E0B;
+  --panel-header: #0D0F13;
+  /* Chart colors */
+  --chart-1: #5B7FFF;
+  --chart-2: #10B981;
+  --chart-3: #F59E0B;
+  --chart-4: #B44AFF;
+  --chart-5: #00D4FF;
+  --chart-6: #FF6B35;
+  --chart-7: #EC4899;
+  --chart-8: #6366F1;
+}
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --font-mono: var(--font-mono);
 }
 
-:root {
-  --radius: 0.75rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+body {
+  background: var(--background);
+  color: var(--foreground);
 }
 
-.dark {
-  /* Premium Dark Theme - Inspired by Modern Fintech */
-  --background: #0A0E1A;
-  --foreground: #E5E7EB;
-  --card: #1A1F2E;
-  --card-foreground: #F3F4F6;
-  --popover: #1A1F2E;
-  --popover-foreground: #F3F4F6;
-  --primary: #5B7FFF;
-  --primary-foreground: #FFFFFF;
-  --secondary: #2A2F3E;
-  --secondary-foreground: #E5E7EB;
-  --muted: #1E2330;
-  --muted-foreground: #9CA3AF;
-  --accent: #2A2F3E;
-  --accent-foreground: #F3F4F6;
-  --destructive: #EF4444;
-  --border: rgba(255, 255, 255, 0.08);
-  --input: rgba(255, 255, 255, 0.1);
-  --ring: #5B7FFF;
-  --chart-1: #5B7FFF;
-  --chart-2: #10B981;
-  --chart-3: #F59E0B;
-  --chart-4: #8B5CF6;
-  --chart-5: #EC4899;
-  --sidebar: #0F1419;
-  --sidebar-foreground: #E5E7EB;
-  --sidebar-primary: #5B7FFF;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1A1F2E;
-  --sidebar-accent-foreground: #E5E7EB;
-  --sidebar-border: rgba(255, 255, 255, 0.06);
-  --sidebar-ring: #5B7FFF;
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground antialiased;
-  }
+/* ─── TUI Panel ─── */
+.tui-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.tui-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-orange), transparent);
+  opacity: 0.15;
 }
 
-/* Premium Custom Styles */
-@layer components {
-  /* Glassmorphism Card */
-  .glass-card {
-    background: rgba(26, 31, 46, 0.6);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+.tui-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--panel-header);
+  border-bottom: 1px solid var(--border);
+  min-height: 36px;
+}
+
+.tui-panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-orange);
+}
+
+.tui-panel-badge {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+/* ─── TUI Dividers ─── */
+.tui-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0;
+}
+
+.tui-divider-labeled {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+.tui-divider-labeled::before,
+.tui-divider-labeled::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.tui-divider-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+}
+
+/* ─── Status bar ─── */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px;
+  background: var(--panel-header);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  min-height: 28px;
+}
+.status-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ─── Bloomberg-style counter ─── */
+.counter-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.counter-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+/* ─── Data tables ─── */
+.data-table {
+  width: 100%;
+  font-size: 13px;
+  border-collapse: collapse;
+}
+.data-table thead th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-bright);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.data-table thead th.text-right {
+  text-align: right;
+}
+.data-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.data-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ─── Blinking cursor ─── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.cursor-blink::after {
+  content: "_";
+  animation: blink 1s step-end infinite;
+  color: var(--accent-orange);
+}
+
+/* ─── Shimmer skeleton ─── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--card) 25%, var(--card-hover) 50%, var(--card) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 2px;
+}
+
+/* ─── Scanline overlay (subtle CRT feel) ─── */
+.scanlines::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ─── Token color dot ─── */
+.token-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* ─── Progress bar (TUI style) ─── */
+.tui-progress {
+  height: 4px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.tui-progress-fill {
+  height: 100%;
+  border-radius: 1px;
+  transition: width 0.5s ease;
+}
+
+/* ─── Chain badge ─── */
+.chain-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--border-bright);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--text-muted);
+  background: var(--card);
+}
+.chain-badge:hover {
+  border-color: var(--accent-orange);
+  color: var(--foreground);
+}
+.chain-badge.active {
+  border-color: var(--accent-orange);
+  color: var(--accent-orange);
+  background: rgba(255, 107, 53, 0.08);
+}
+
+/* ─── Time range selector buttons ─── */
+.time-btn {
+  padding: 3px 10px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.time-btn:hover {
+  border-color: var(--border-bright);
+  color: var(--foreground);
+}
+.time-btn.active {
+  border-color: var(--accent-orange);
+  color: var(--accent-orange);
+  background: rgba(255, 107, 53, 0.08);
+}
+
+/* ─── Risk badges ─── */
+.risk-safe { color: #10B981; }
+.risk-moderate { color: #F59E0B; }
+.risk-high { color: #FF4444; }
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .counter-value {
+    font-size: 1.25rem;
   }
-  
-  /* Gradient Border Effect */
-  .gradient-border {
-    position: relative;
-    background: var(--card);
-    border-radius: var(--radius-lg);
+  .counter-label {
+    font-size: 9px;
   }
-  
-  .gradient-border::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: var(--radius-lg);
-    padding: 1px;
-    background: linear-gradient(135deg, #5B7FFF, transparent);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    opacity: 0;
-    transition: opacity 0.3s ease;
+  .tui-panel-header {
+    padding: 6px 10px;
+    gap: 4px;
+    flex-wrap: wrap;
   }
-  
-  .gradient-border:hover::before {
-    opacity: 1;
+  .tui-panel-title {
+    font-size: 10px;
   }
-  
-  /* Smooth Transitions */
-  .transition-smooth {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  .tui-panel:has(.data-table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .data-table {
+    font-size: 11px;
+    min-width: 500px;
+  }
+  .data-table thead th,
+  .data-table tbody td {
+    padding: 6px 8px;
+  }
+  .tui-divider-labeled {
+    margin: 10px 0;
+    gap: 8px;
   }
 }

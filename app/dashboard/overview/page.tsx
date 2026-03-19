@@ -2,38 +2,36 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
-import { MetricCard } from '@/components/aave-dashboard/MetricCard';
 import { LoadingState } from '@/components/aave-dashboard/LoadingState';
 import { ErrorState } from '@/components/aave-dashboard/ErrorState';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import TuiPanel, { TuiDivider } from '@/components/aave-dashboard/TuiPanel';
+import ChartWrapper from '@/components/aave-dashboard/ChartWrapper';
+import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { formatCurrency } from '@/lib/aave/helpers';
 
-async function getOverviewData() {
-    const res = await fetch('/api/aave/overview');
+async function getOverviewData(chain?: string) {
+    const params = chain && chain !== 'all' ? `?chain=${chain}` : '';
+    const res = await fetch(`/api/aave/overview${params}`);
     if (!res.ok) throw new Error('Failed to fetch data');
     return res.json();
 }
 
 export default function OverviewPage() {
-    const [timeRange, setTimeRange] = useState<'30' | '90' | '180'>('90');
+    const [timeRange, setTimeRange] = useState(90);
+    const [chain, setChain] = useState<string>('all');
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['overviewData'],
-        queryFn: getOverviewData,
+        queryKey: ['overviewData', chain],
+        queryFn: () => getOverviewData(chain),
     });
 
     if (isLoading) return <LoadingState />;
     if (error) return <ErrorState message="Failed to load overview data. Please try again." />;
 
-    // Filter historical data based on selected time range
-    const filteredData = data.historicalData.slice(-parseInt(timeRange));
+    const filteredData = data.historicalData.slice(-timeRange);
 
-    // Calculate percentage changes based on selected time range
-    const oldSnapshot = data.historicalData[data.historicalData.length - parseInt(timeRange)] || data.historicalData[0];
+    const oldSnapshot = data.historicalData[data.historicalData.length - timeRange] || data.historicalData[0];
     const latestSnapshot = data.historicalData[data.historicalData.length - 1];
 
     const tvlChange = oldSnapshot
@@ -44,159 +42,175 @@ export default function OverviewPage() {
         ? ((latestSnapshot.borrows - oldSnapshot.borrows) / oldSnapshot.borrows) * 100
         : 0;
 
+    const counters = [
+        { label: 'Total Supply', value: formatCurrency(data.totalValueLockedUSD), accent: true },
+        { label: 'Total Borrow', value: formatCurrency(data.totalBorrowBalanceUSD), accent: false },
+        { label: 'Net TVL', value: formatCurrency(data.tvl), accent: false, sub: 'Supply − Borrow' },
+        { label: 'Total Markets', value: data.totalMarkets.toString(), accent: false },
+    ];
+
     return (
         <div className="space-y-4">
-            {/* Compact Time Range Selector */}
-            <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold">Protocol Overview</h2>
-                <Tabs value={timeRange} onValueChange={(value) => setTimeRange(value as '30' | '90' | '180')}>
-                    <TabsList>
-                        <TabsTrigger value="30">30D</TabsTrigger>
-                        <TabsTrigger value="90">90D</TabsTrigger>
-                        <TabsTrigger value="180">180D</TabsTrigger>
-                    </TabsList>
-                </Tabs>
+            {/* Header row */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+                <h2 className="text-sm font-bold uppercase tracking-[0.1em]" style={{ color: "var(--foreground)" }}>
+                    Protocol Overview
+                </h2>
+                <div className="flex items-center gap-2">
+                    {/* Chain selector */}
+                    {[
+                        { id: 'all', label: 'ALL' },
+                        { id: 'ethereum', label: 'ETH' },
+                        { id: 'arbitrum', label: 'ARB' },
+                        { id: 'base', label: 'BASE' },
+                        { id: 'optimism', label: 'OP' },
+                        { id: 'polygon', label: 'POLY' },
+                        { id: 'avalanche', label: 'AVAX' },
+                    ].map((c) => (
+                        <button
+                            key={c.id}
+                            onClick={() => setChain(c.id)}
+                            className={`chain-badge ${chain === c.id ? 'active' : ''}`}
+                        >
+                            {c.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
-            {/* Tighter Metrics Grid */}
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                <MetricCard
-                    title="Total Supply"
-                    value={formatCurrency(data.totalValueLockedUSD)}
-                    change={tvlChange}
-                    changeLabel={`vs ${timeRange}d ago`}
-                />
-                <MetricCard
-                    title="Total Borrow"
-                    value={formatCurrency(data.totalBorrowBalanceUSD)}
-                    change={borrowChange}
-                    changeLabel={`vs ${timeRange}d ago`}
-                />
-                <MetricCard
-                    title="Net TVL"
-                    value={formatCurrency(data.tvl)}
-                    subtitle="Supply - Borrow"
-                />
-                <MetricCard
-                    title="Total Markets"
-                    value={data.totalMarkets.toString()}
-                    subtitle={`${data.totalMarkets} active lending markets`}
-                />
-            </div>
-
-            {/* Historical Chart - Compact */}
-            <Card className="border-border/50">
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">Supply vs Borrow Trend</CardTitle>
-                    <p className="text-xs text-muted-foreground">
-                        Last {timeRange} days
-                    </p>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <div className="relative h-80 p-6">
-                        {/* Watermark - Behind */}
-                        <div className="absolute inset-0 flex items-center justify-center z-0">
-                            <Image
-                                src="/branding/logo-horizontal.png"
-                                alt="Datum Labs"
-                                width={250}
-                                height={50}
-                                className="opacity-10"
-                            />
-                        </div>
-
-                        {/* Chart - In Front */}
-                        <ResponsiveContainer width="100%" height="100%" className="relative z-10">
-                            <AreaChart
-                                data={filteredData}
-                                margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                            >
-                                <defs>
-                                    <linearGradient id="colorSupply" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                    </linearGradient>
-                                    <linearGradient id="colorBorrow" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                                <XAxis
-                                    dataKey="date"
-                                    tickFormatter={(value) => {
-                                        const date = new Date(value);
-                                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                                    }}
-                                    tick={{ fontSize: 12 }}
-                                />
-                                <YAxis
-                                    tickFormatter={(value) => formatCurrency(value)}
-                                    tick={{ fontSize: 12 }}
-                                />
-                                <Tooltip
-                                    formatter={(value: any) => [formatCurrency(Number(value || 0)), '']}
-                                    labelFormatter={(label) => {
-                                        const date = new Date(label);
-                                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                                    }}
-                                />
-                                <Legend />
-                                <Area
-                                    type="monotone"
-                                    dataKey="tvl"
-                                    stroke="#10b981"
-                                    fillOpacity={1}
-                                    fill="url(#colorSupply)"
-                                    name="Total Supply"
-                                />
-                                <Area
-                                    type="monotone"
-                                    dataKey="borrows"
-                                    stroke="#f59e0b"
-                                    fillOpacity={1}
-                                    fill="url(#colorBorrow)"
-                                    name="Total Borrow"
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
+            {/* Counter row */}
+            <div className="tui-panel">
+                <div className="tui-panel-header">
+                    <span className="tui-panel-title">Key Metrics</span>
+                    <div className="flex items-center gap-3">
+                        <span className="tui-panel-badge">
+                            Updated {new Date(data.lastUpdated).toLocaleTimeString()}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
+                            <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--accent-orange)" }} />
+                            LIVE
+                        </span>
                     </div>
-                </CardContent>
-            </Card>
-
-            {/* Revenue Metrics - Tighter */}
-            <div className="grid gap-3 md:grid-cols-2">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Protocol Revenue</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                            Cumulative revenue earned by the protocol
-                        </p>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-3xl font-bold">
-                            {formatCurrency(data.protocolRevenueUSD)}
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4">
+                    {counters.map((c, i) => (
+                        <div
+                            key={c.label}
+                            className={`p-4 lg:p-5 ${i < counters.length - 1 ? "border-r" : ""}`}
+                            style={{ borderColor: "var(--border)" }}
+                        >
+                            <p className="counter-label">{c.label}</p>
+                            <p
+                                className="counter-value"
+                                style={{ color: c.accent ? "var(--accent-orange)" : "var(--foreground)" }}
+                            >
+                                {c.value}
+                            </p>
+                            {c.sub && (
+                                <span className="text-[9px]" style={{ color: "var(--text-muted)" }}>{c.sub}</span>
+                            )}
                         </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Supply Side Revenue</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                            Cumulative revenue earned by suppliers
-                        </p>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-3xl font-bold">
-                            {formatCurrency(data.supplyRevenueUSD)}
-                        </div>
-                    </CardContent>
-                </Card>
+                    ))}
+                </div>
             </div>
 
-            {/* Last Updated */}
-            <div className="text-xs text-muted-foreground text-right">
-                Last updated: {new Date(data.lastUpdated).toLocaleString()}
+            {/* Change indicators */}
+            <div className="grid grid-cols-2 gap-3">
+                <div className="tui-panel">
+                    <div className="p-3 flex items-center justify-between">
+                        <span className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--text-muted)" }}>
+                            Supply Δ ({timeRange}d)
+                        </span>
+                        <span className="text-sm font-bold" style={{ color: tvlChange >= 0 ? "var(--accent-green)" : "var(--accent-red)" }}>
+                            {tvlChange >= 0 ? '↑' : '↓'} {Math.abs(tvlChange).toFixed(2)}%
+                        </span>
+                    </div>
+                </div>
+                <div className="tui-panel">
+                    <div className="p-3 flex items-center justify-between">
+                        <span className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--text-muted)" }}>
+                            Borrow Δ ({timeRange}d)
+                        </span>
+                        <span className="text-sm font-bold" style={{ color: borrowChange >= 0 ? "var(--accent-green)" : "var(--accent-red)" }}>
+                            {borrowChange >= 0 ? '↑' : '↓'} {Math.abs(borrowChange).toFixed(2)}%
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Chart */}
+            <ChartWrapper
+                title="Supply vs Borrow Trend"
+                badge={`Last ${timeRange} days`}
+                timeRanges={[30, 90, 180]}
+                selectedRange={timeRange}
+                onRangeChange={setTimeRange}
+            >
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={filteredData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <defs>
+                            <linearGradient id="colorSupply" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#10B981" stopOpacity={0.15} />
+                                <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                            </linearGradient>
+                            <linearGradient id="colorBorrow" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.15} />
+                                <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                        <XAxis
+                            dataKey="date"
+                            tickFormatter={(value) => {
+                                const date = new Date(value);
+                                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                            }}
+                            tick={{ fontSize: 10, fill: '#6B7280' }}
+                            axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+                            tickLine={false}
+                        />
+                        <YAxis
+                            tickFormatter={(value) => formatCurrency(value)}
+                            tick={{ fontSize: 10, fill: '#6B7280' }}
+                            axisLine={false}
+                            tickLine={false}
+                        />
+                        <Tooltip
+                            contentStyle={{
+                                background: 'var(--card)',
+                                border: '1px solid var(--border-bright)',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                color: 'var(--foreground)',
+                            }}
+                            formatter={(value: number | undefined) => [formatCurrency(Number(value ?? 0)), '']}
+                            labelFormatter={(label) => {
+                                const date = new Date(label);
+                                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                            }}
+                        />
+                        <Area type="monotone" dataKey="tvl" stroke="#10B981" strokeWidth={1.5} fillOpacity={1} fill="url(#colorSupply)" name="Total Supply" />
+                        <Area type="monotone" dataKey="borrows" stroke="#F59E0B" strokeWidth={1.5} fillOpacity={1} fill="url(#colorBorrow)" name="Total Borrow" />
+                    </AreaChart>
+                </ResponsiveContainer>
+            </ChartWrapper>
+
+            <TuiDivider label="Revenue" />
+
+            {/* Revenue */}
+            <div className="grid grid-cols-2 gap-3">
+                <TuiPanel title="Supply-Side Revenue" badge="Cumulative">
+                    <p className="counter-value" style={{ color: "var(--accent-green)" }}>
+                        {formatCurrency(data.supplyRevenueUSD)}
+                    </p>
+                    <p className="text-[9px] mt-1" style={{ color: "var(--text-muted)" }}>Earned by depositors</p>
+                </TuiPanel>
+                <TuiPanel title="Protocol Revenue" badge="90d">
+                    <p className="counter-value" style={{ color: "var(--accent-blue)" }}>
+                        {formatCurrency(data.protocolRevenueUSD)}
+                    </p>
+                    <p className="text-[9px] mt-1" style={{ color: "var(--text-muted)" }}>Earned by the protocol</p>
+                </TuiPanel>
             </div>
         </div>
     );

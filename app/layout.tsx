@@ -1,21 +1,16 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const mono = JetBrains_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Aave V3 Ethereum Risk Dashboard",
-  description: "Real-time risk analytics and monitoring for Aave V3 on Ethereum",
+  title: "Aave V3 Risk Terminal — Datum Labs",
+  description: "Real-time risk analytics and monitoring for Aave V3 on Ethereum & Arbitrum",
 };
 
 export default function RootLayout({
@@ -24,9 +19,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
+        className={`${mono.variable} font-mono antialiased scanlines`}
+        style={{ background: "var(--background)", color: "var(--foreground)" }}
       >
         <Providers>
           {children}

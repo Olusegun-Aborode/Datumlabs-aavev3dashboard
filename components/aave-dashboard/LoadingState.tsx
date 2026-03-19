@@ -1,24 +1,38 @@
-// components/aave-dashboard/LoadingState.tsx
+'use client';
+
 export function LoadingState() {
     return (
-        <div className="flex items-center justify-center h-64">
-            <div className="flex flex-col items-center gap-2">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                <p className="text-sm text-muted-foreground">Loading data...</p>
-            </div>
-        </div>
-    );
-}
-
-export function LoadingSkeleton() {
-    return (
         <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-32 bg-muted animate-pulse rounded-lg"></div>
-                ))}
+            {/* Skeleton counters */}
+            <div className="tui-panel">
+                <div className="tui-panel-header">
+                    <span className="tui-panel-title">Loading</span>
+                    <span className="tui-panel-badge cursor-blink">Fetching data</span>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4">
+                    {[...Array(4)].map((_, i) => (
+                        <div
+                            key={i}
+                            className={`p-4 lg:p-5 ${i < 3 ? "border-r" : ""}`}
+                            style={{ borderColor: "var(--border)" }}
+                        >
+                            <div className="h-3 w-20 skeleton mb-2" />
+                            <div className="h-7 w-28 skeleton" />
+                        </div>
+                    ))}
+                </div>
             </div>
-            <div className="h-96 bg-muted animate-pulse rounded-lg"></div>
+            {/* Skeleton panel */}
+            <div className="tui-panel">
+                <div className="tui-panel-header">
+                    <div className="h-3 w-32 skeleton" />
+                </div>
+                <div className="p-4 lg:p-5 space-y-3">
+                    <div className="h-4 w-full skeleton" />
+                    <div className="h-4 w-3/4 skeleton" />
+                    <div className="h-48 w-full skeleton" />
+                </div>
+            </div>
         </div>
     );
 }
