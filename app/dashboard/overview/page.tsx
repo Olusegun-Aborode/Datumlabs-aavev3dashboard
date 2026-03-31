@@ -7,7 +7,7 @@ import { LoadingState } from '@/components/aave-dashboard/LoadingState';
 import { ErrorState } from '@/components/aave-dashboard/ErrorState';
 import TuiPanel, { TuiDivider } from '@/components/aave-dashboard/TuiPanel';
 import ChartWrapper from '@/components/aave-dashboard/ChartWrapper';
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { formatCurrency } from '@/lib/aave/helpers';
 
 async function getOverviewData(chain?: string) {
@@ -147,6 +147,10 @@ export default function OverviewPage() {
                 selectedRange={timeRange}
                 onRangeChange={setTimeRange}
                 dataSource="Source: DeFi Llama API (/protocol/aave-v3). Supply = totalLiquidityUSD per chain. Borrow = totalBorrowBalanceUSD per chain. Aggregated daily across all Aave V3 deployments."
+                legend={[
+                    { label: 'Total Supply', color: '#10B981' },
+                    { label: 'Total Borrow', color: '#F59E0B' },
+                ]}
             >
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={filteredData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -191,12 +195,6 @@ export default function OverviewPage() {
                                 return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                             }}
                         />
-                        <Legend
-                            verticalAlign="top"
-                            align="left"
-                            iconType="line"
-                            wrapperStyle={{ fontSize: '10px', paddingLeft: '10px', paddingBottom: '4px' }}
-                        />
                         <Area type="monotone" dataKey="tvl" stroke="#10B981" strokeWidth={1.5} fillOpacity={1} fill="url(#colorSupply)" name="Total Supply" />
                         <Area type="monotone" dataKey="borrows" stroke="#F59E0B" strokeWidth={1.5} fillOpacity={1} fill="url(#colorBorrow)" name="Total Borrow" />
                     </AreaChart>
@@ -213,7 +211,7 @@ export default function OverviewPage() {
                             Supply-Side Revenue (All Time)
                             <span className="relative group cursor-help">
                                 &#9432;
-                                <span className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-56 p-2 rounded text-[10px] leading-relaxed"
+                                <span className="absolute left-0 bottom-full mb-1 z-50 hidden group-hover:block w-56 p-2 rounded text-[10px] leading-relaxed"
                                     style={{ background: 'var(--card)', border: '1px solid var(--border-bright)', color: 'var(--text-muted)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
                                     Source: DeFi Llama totalAllTime from /summary/fees/aave?dataType=dailySupplySideRevenue. Cumulative interest earned by depositors across all Aave markets.
                                 </span>
@@ -230,7 +228,7 @@ export default function OverviewPage() {
                             Protocol Revenue (All Time)
                             <span className="relative group cursor-help">
                                 &#9432;
-                                <span className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-56 p-2 rounded text-[10px] leading-relaxed"
+                                <span className="absolute left-0 bottom-full mb-1 z-50 hidden group-hover:block w-56 p-2 rounded text-[10px] leading-relaxed"
                                     style={{ background: 'var(--card)', border: '1px solid var(--border-bright)', color: 'var(--text-muted)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
                                     Source: DeFi Llama totalAllTime from /summary/fees/aave?dataType=dailyRevenue. Cumulative interest retained by the Aave protocol treasury.
                                 </span>
@@ -251,6 +249,10 @@ export default function OverviewPage() {
                 selectedRange={revenueTimeRange}
                 onRangeChange={setRevenueTimeRange}
                 dataSource="Source: DeFi Llama API (/summary/fees/aave). Supply-Side Revenue = interest earned by depositors (dailySupplySideRevenue). Protocol Revenue = interest retained by the protocol treasury (dailyRevenue)."
+                legend={[
+                    { label: 'Supply-Side Revenue', color: '#10B981' },
+                    { label: 'Protocol Revenue', color: '#6366F1' },
+                ]}
             >
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={(data.revenueHistory || []).slice(-revenueTimeRange)} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -294,12 +296,6 @@ export default function OverviewPage() {
                                 const date = new Date(label);
                                 return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                             }}
-                        />
-                        <Legend
-                            verticalAlign="top"
-                            align="left"
-                            iconType="line"
-                            wrapperStyle={{ fontSize: '10px', paddingLeft: '10px', paddingBottom: '4px' }}
                         />
                         <Area type="monotone" dataKey="supplyRevenue" stroke="#10B981" strokeWidth={1.5} fillOpacity={1} fill="url(#colorSupplyRev)" name="Supply-Side Revenue" />
                         <Area type="monotone" dataKey="protocolRevenue" stroke="#6366F1" strokeWidth={1.5} fillOpacity={1} fill="url(#colorProtocolRev)" name="Protocol Revenue" />

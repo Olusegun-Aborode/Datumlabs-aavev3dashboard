@@ -4,6 +4,11 @@
 import { useState, useRef, useCallback } from 'react';
 
 
+interface LegendItem {
+    label: string;
+    color: string;
+}
+
 interface ChartWrapperProps {
     title: string;
     badge?: string;
@@ -13,6 +18,7 @@ interface ChartWrapperProps {
     onRangeChange?: (range: number) => void;
     height?: string;
     dataSource?: string;
+    legend?: LegendItem[];
 }
 
 export default function ChartWrapper({
@@ -24,6 +30,7 @@ export default function ChartWrapper({
     onRangeChange,
     height = 'h-72 lg:h-80',
     dataSource,
+    legend,
 }: ChartWrapperProps) {
     const [expanded, setExpanded] = useState(false);
     const chartRef = useRef<HTMLDivElement>(null);
@@ -146,6 +153,18 @@ export default function ChartWrapper({
                     </div>
                 </div>
 
+                {/* Legend bar */}
+                {legend && legend.length > 0 && (
+                    <div className="flex items-center gap-4 px-4 py-1.5" style={{ borderBottom: '1px solid var(--border)' }}>
+                        {legend.map((item) => (
+                            <div key={item.label} className="flex items-center gap-1.5">
+                                <span className="inline-block w-3 h-[2px] rounded" style={{ background: item.color }} />
+                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{item.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {/* Chart area with watermark */}
                 <div className={`relative ${expanded ? 'flex-1' : height}`}>
                     {children}
@@ -155,8 +174,8 @@ export default function ChartWrapper({
                         <img
                             src="/branding/datumlabs-watermark.svg"
                             alt=""
-                            width={180}
-                            height={45}
+                            width={280}
+                            height={70}
                             className="select-none opacity-[0.06]"
                             draggable={false}
                         />
