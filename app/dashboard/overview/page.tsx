@@ -211,7 +211,7 @@ export default function OverviewPage() {
                             Supply-Side Revenue (All Time)
                             <span className="relative group cursor-help">
                                 &#9432;
-                                <span className="absolute left-0 bottom-full mb-1 z-50 hidden group-hover:block w-56 p-2 rounded text-[10px] leading-relaxed normal-case"
+                                <span className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-56 p-2 rounded text-[10px] leading-relaxed normal-case"
                                     style={{ background: 'var(--card)', border: '1px solid var(--border-bright)', color: 'var(--text-muted)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
                                     Source: DeFi Llama totalAllTime from /summary/fees/aave?dataType=dailySupplySideRevenue. Cumulative interest earned by depositors across all Aave markets.
                                 </span>
@@ -228,7 +228,7 @@ export default function OverviewPage() {
                             Protocol Revenue (All Time)
                             <span className="relative group cursor-help">
                                 &#9432;
-                                <span className="absolute left-0 bottom-full mb-1 z-50 hidden group-hover:block w-56 p-2 rounded text-[10px] leading-relaxed normal-case"
+                                <span className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-56 p-2 rounded text-[10px] leading-relaxed normal-case"
                                     style={{ background: 'var(--card)', border: '1px solid var(--border-bright)', color: 'var(--text-muted)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
                                     Source: DeFi Llama totalAllTime from /summary/fees/aave?dataType=dailyRevenue. Cumulative interest retained by the Aave protocol treasury.
                                 </span>
