@@ -24,6 +24,8 @@ export default function MarketsPage() {
     const [sortBy, setSortBy] = useState<'tvl' | 'supplyApy' | 'borrowApy' | 'utilization'>('tvl');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [chain, setChain] = useState<string>('all');
+    const [page, setPage] = useState(1);
+    const pageSize = 20;
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['marketsData', chain],
@@ -90,7 +92,7 @@ export default function MarketsPage() {
                 </h2>
                 <select
                     value={chain}
-                    onChange={(e) => setChain(e.target.value)}
+                    onChange={(e) => { setChain(e.target.value); setPage(1); }}
                     className="text-[11px] uppercase tracking-[0.05em] px-3 py-1.5 rounded cursor-pointer outline-none"
                     style={{
                         background: 'var(--card)',
@@ -191,14 +193,14 @@ export default function MarketsPage() {
             <TuiDivider label="All Markets" />
 
             {/* Search and table */}
-            <TuiPanel title="Market Data" badge={`${filteredMarkets.length} of ${data.markets.length}`} noPadding>
+            <TuiPanel title="Market Data" badge={`Page ${page} · ${Math.min(page * pageSize, filteredMarkets.length)} of ${filteredMarkets.length}`} noPadding>
                 {/* Search bar inside panel header area */}
                 <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
                     <input
                         type="text"
                         placeholder="Search markets..."
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
                         className="w-full sm:w-64 text-xs px-3 py-1.5 rounded outline-none"
                         style={{
                             background: "var(--background)",
@@ -231,7 +233,7 @@ export default function MarketsPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredMarkets.map((market: any) => {
+                            {filteredMarkets.slice((page - 1) * pageSize, page * pageSize).map((market: any) => {
                                 const supplyRate = market.rates.find((r: any) => r.side === 'LENDER');
                                 const borrowRate = market.rates.find((r: any) => r.side === 'BORROWER');
 
@@ -275,6 +277,29 @@ export default function MarketsPage() {
                             })}
                         </tbody>
                     </table>
+                </div>
+
+                {/* Pagination */}
+                <div className="px-4 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)" }}>
+                    <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                        Page {page} of {Math.ceil(filteredMarkets.length / pageSize)}
+                    </span>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                            className="time-btn disabled:opacity-30"
+                        >
+                            ← Prev
+                        </button>
+                        <button
+                            onClick={() => setPage(p => p + 1)}
+                            disabled={page * pageSize >= filteredMarkets.length}
+                            className="time-btn disabled:opacity-30"
+                        >
+                            Next →
+                        </button>
+                    </div>
                 </div>
             </TuiPanel>
         </div>

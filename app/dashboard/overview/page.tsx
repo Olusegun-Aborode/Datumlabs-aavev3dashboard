@@ -164,7 +164,7 @@ export default function OverviewPage() {
                                 <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
                             </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
                         <XAxis
                             dataKey="date"
                             tickFormatter={(value) => {
@@ -172,7 +172,7 @@ export default function OverviewPage() {
                                 return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                             }}
                             tick={{ fontSize: 10, fill: '#6B7280' }}
-                            axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+                            axisLine={{ stroke: 'rgba(0,0,0,0.1)' }}
                             tickLine={false}
                         />
                         <YAxis
@@ -266,7 +266,7 @@ export default function OverviewPage() {
                                 <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
                             </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
                         <XAxis
                             dataKey="date"
                             tickFormatter={(value) => {
@@ -274,7 +274,7 @@ export default function OverviewPage() {
                                 return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                             }}
                             tick={{ fontSize: 10, fill: '#6B7280' }}
-                            axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+                            axisLine={{ stroke: 'rgba(0,0,0,0.1)' }}
                             tickLine={false}
                         />
                         <YAxis

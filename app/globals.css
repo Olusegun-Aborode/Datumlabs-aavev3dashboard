@@ -1,31 +1,30 @@
 @import "tailwindcss";
 
-:root,
-.dark {
-  --background: #0B0D0F;
-  --foreground: #E0E0E0;
-  --card: #111318;
-  --card-hover: #1A1E24;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-bright: rgba(255, 255, 255, 0.15);
+:root {
+  --background: #FFFFFF;
+  --foreground: #1A1A2E;
+  --card: #F8F9FA;
+  --card-hover: #F0F1F3;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-bright: rgba(0, 0, 0, 0.15);
   --text-muted: #6B7280;
-  --accent-orange: #FF6B35;
-  --accent-red: #FF4444;
-  --accent-blue: #5B7FFF;
-  --accent-green: #10B981;
-  --accent-purple: #B44AFF;
-  --accent-cyan: #00D4FF;
-  --accent-yellow: #F59E0B;
-  --panel-header: #0D0F13;
+  --accent-orange: #E85D26;
+  --accent-red: #DC2626;
+  --accent-blue: #4F6EE8;
+  --accent-green: #059669;
+  --accent-purple: #7C3AED;
+  --accent-cyan: #0891B2;
+  --accent-yellow: #D97706;
+  --panel-header: #F0F2F5;
   /* Chart colors */
-  --chart-1: #5B7FFF;
-  --chart-2: #10B981;
-  --chart-3: #F59E0B;
-  --chart-4: #B44AFF;
-  --chart-5: #00D4FF;
-  --chart-6: #FF6B35;
-  --chart-7: #EC4899;
-  --chart-8: #6366F1;
+  --chart-1: #4F6EE8;
+  --chart-2: #059669;
+  --chart-3: #D97706;
+  --chart-4: #7C3AED;
+  --chart-5: #0891B2;
+  --chart-6: #E85D26;
+  --chart-7: #DB2777;
+  --chart-8: #4F46E5;
 }
 
 @theme inline {
@@ -48,18 +47,18 @@ body {
   background: var(--background);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.12);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 /* ─── TUI Panel ─── */
 .tui-panel {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   overflow: hidden;
   position: relative;
 }
@@ -69,9 +68,9 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  height: 1px;
+  height: 2px;
   background: linear-gradient(90deg, transparent, var(--accent-orange), transparent);
-  opacity: 0.15;
+  opacity: 0.3;
 }
 
 .tui-panel-header {
@@ -187,7 +186,7 @@ body {
   border-bottom: none;
 }
 .data-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(0, 0, 0, 0.02);
 }
 
 /* ─── Blinking cursor ─── */
@@ -213,24 +212,6 @@ body {
   border-radius: 2px;
 }
 
-/* ─── Scanline overlay (subtle CRT feel) ─── */
-.scanlines::after {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: repeating-linear-gradient(
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.03) 2px,
-    rgba(0, 0, 0, 0.03) 4px
-  );
-  pointer-events: none;
-  z-index: 9999;
-}
-
 /* ─── Token color dot ─── */
 .token-dot {
   display: inline-block;
@@ -241,11 +222,11 @@ body {
   vertical-align: middle;
 }
 
-/* ─── Progress bar (TUI style) ─── */
+/* ─── Progress bar ─── */
 .tui-progress {
   height: 4px;
   border-radius: 1px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.06);
   overflow: hidden;
 }
 .tui-progress-fill {
@@ -277,7 +258,7 @@ body {
 .chain-badge.active {
   border-color: var(--accent-orange);
   color: var(--accent-orange);
-  background: rgba(255, 107, 53, 0.08);
+  background: rgba(232, 93, 38, 0.08);
 }
 
 /* ─── Time range selector buttons ─── */
@@ -300,13 +281,13 @@ body {
 .time-btn.active {
   border-color: var(--accent-orange);
   color: var(--accent-orange);
-  background: rgba(255, 107, 53, 0.08);
+  background: rgba(232, 93, 38, 0.08);
 }
 
 /* ─── Risk badges ─── */
-.risk-safe { color: #10B981; }
-.risk-moderate { color: #F59E0B; }
-.risk-high { color: #FF4444; }
+.risk-safe { color: #059669; }
+.risk-moderate { color: #D97706; }
+.risk-high { color: #DC2626; }
 
 /* ─── Responsive ─── */
 @media (max-width: 768px) {

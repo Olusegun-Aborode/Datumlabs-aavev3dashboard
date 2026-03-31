@@ -19,10 +19,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className={`${mono.variable} font-mono antialiased scanlines`}
+        className={`${mono.variable} font-mono antialiased`}
         style={{ background: "var(--background)", color: "var(--foreground)" }}
       >
         <Providers>

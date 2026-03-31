@@ -19,7 +19,7 @@ async function getLiquidationsData(page: number, pageSize: number, chain?: strin
 
 export default function LiquidationsPage() {
     const [page, setPage] = useState(1);
-    const pageSize = 50;
+    const pageSize = 20;
     const [chain, setChain] = useState<string>('all');
 
     const { data, isLoading, error } = useQuery({
@@ -64,7 +64,7 @@ export default function LiquidationsPage() {
             </div>
 
             {/* Summary counters */}
-            <div className="tui-panel">
+            <div className="tui-panel" style={{ overflow: 'visible' }}>
                 <div className="tui-panel-header">
                     <span className="tui-panel-title">Liquidation Summary</span>
                     <span className="relative group cursor-help text-[10px]" style={{ color: 'var(--text-muted)' }}>
@@ -107,11 +107,11 @@ export default function LiquidationsPage() {
                 >
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={aggregations.byAsset.slice(0, 10)}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
                             <XAxis
                                 dataKey="symbol"
                                 tick={{ fontSize: 10, fill: '#6B7280' }}
-                                axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+                                axisLine={{ stroke: 'rgba(0,0,0,0.1)' }}
                                 tickLine={false}
                             />
                             <YAxis

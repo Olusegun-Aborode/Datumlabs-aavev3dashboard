@@ -17,7 +17,7 @@ async function getWalletsData(page: number, pageSize: number, hideEmpty: boolean
 
 export default function WalletsPage() {
     const [page, setPage] = useState(1);
-    const pageSize = 50;
+    const pageSize = 20;
     const [searchTerm, setSearchTerm] = useState('');
     const [riskFilter, setRiskFilter] = useState<'all' | 'safe' | 'moderate' | 'high'>('all');
     const [hideEmpty, setHideEmpty] = useState(true);
@@ -87,7 +87,7 @@ export default function WalletsPage() {
             </div>
 
             {/* Summary counters */}
-            <div className="tui-panel">
+            <div className="tui-panel" style={{ overflow: 'visible' }}>
                 <div className="tui-panel-header">
                     <span className="tui-panel-title">Wallet Summary</span>
                     <span className="relative group cursor-help text-[10px]" style={{ color: 'var(--text-muted)' }}>

@@ -118,7 +118,7 @@ export default function ChartWrapper({
                         {/* Screenshot — camera icon */}
                         <button
                             onClick={handleScreenshot}
-                            className="p-1 rounded transition-colors hover:bg-white/5"
+                            className="p-1 rounded transition-colors hover:bg-black/5"
                             title="Screenshot"
                         >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-muted)' }}>
@@ -129,7 +129,7 @@ export default function ChartWrapper({
                         {/* Expand — fullscreen the entire chart */}
                         <button
                             onClick={() => setExpanded(!expanded)}
-                            className="p-1 rounded transition-colors hover:bg-white/5"
+                            className="p-1 rounded transition-colors hover:bg-black/5"
                             title={expanded ? 'Collapse' : 'Expand'}
                         >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-muted)' }}>
