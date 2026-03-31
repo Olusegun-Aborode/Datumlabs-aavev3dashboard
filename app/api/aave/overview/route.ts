@@ -1,10 +1,74 @@
 // app/api/aave/overview/route.ts
 import { NextResponse } from 'next/server';
-import { getSubgraphClient, CHAINS, CHAIN_IDS, type ChainId } from '@/lib/aave/graphql-client';
-import { GET_POOL_COUNT, GET_AAVE_POOL_COUNT } from '@/lib/aave/queries';
 import { fetchProtocolData, fetchRevenueData, buildHistoricalData } from '@/lib/aave/defillama';
 
+const AAVEKIT_URL = 'https://api.v3.aave.com/graphql';
+
+// All AaveKit chain IDs
+const ALL_CHAIN_IDS = [1, 42161, 43114, 8453, 56, 42220, 100, 59144, 1088, 10, 137, 534352, 1868, 146, 324, 9745, 57073, 5000, 4326, 196];
+
+// Map our chain keys to AaveKit chain IDs
+const CHAIN_KEY_TO_ID: Record<string, number> = {
+    ethereum: 1, arbitrum: 42161, avalanche: 43114, base: 8453,
+    bnb: 56, celo: 42220, gnosis: 100, linea: 59144,
+    metis: 1088, optimism: 10, polygon: 137, scroll: 534352,
+    soneium: 1868, sonic: 146, zksync: 324, plasma: 9745,
+    ink: 57073, mantle: 5000, megaeth: 4326, xlayer: 196,
+};
+
+const METRICS_QUERY = `
+  query GetMetrics($chainIds: [ChainId!]!) {
+    markets(request: { chainIds: $chainIds }) {
+      name
+      totalMarketSize
+      totalAvailableLiquidity
+      reserves {
+        borrowInfo {
+          total { usd }
+        }
+      }
+    }
+  }
+`;
+
 const cache = new Map<string, { data: any; lastFetched: number }>();
+
+/**
+ * Fetch key metrics from AaveKit API (accurate real-time data).
+ */
+async function fetchAaveKitMetrics(chain: string) {
+    const chainIds = chain !== 'all' && chain in CHAIN_KEY_TO_ID
+        ? [CHAIN_KEY_TO_ID[chain]]
+        : ALL_CHAIN_IDS;
+
+    const res = await fetch(AAVEKIT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: METRICS_QUERY, variables: { chainIds } }),
+    });
+
+    if (!res.ok) throw new Error(`AaveKit API error: ${res.status}`);
+    const { data, errors } = await res.json();
+    if (errors) throw new Error(errors[0]?.message || 'AaveKit query error');
+
+    let totalMarketSize = 0;
+    let totalAvailable = 0;
+    let totalBorrows = 0;
+    let totalReserves = 0;
+
+    for (const market of data.markets) {
+        totalMarketSize += parseFloat(market.totalMarketSize || '0');
+        totalAvailable += parseFloat(market.totalAvailableLiquidity || '0');
+        for (const r of market.reserves) {
+            if (r.borrowInfo?.total?.usd) {
+                totalBorrows += parseFloat(r.borrowInfo.total.usd);
+            }
+        }
+        totalReserves += market.reserves.length;
+    }
+
+    return { totalMarketSize, totalAvailable, totalBorrows, totalReserves };
+}
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -20,33 +84,20 @@ export async function GET(request: Request) {
     }
 
     try {
-        // Fetch DeFi Llama data and pool count in parallel
-        const [protocolData, revenueData, totalMarkets] = await Promise.all([
+        // Fetch AaveKit metrics, DeFi Llama historical data, and revenue in parallel
+        const [metrics, protocolData, revenueData] = await Promise.all([
+            fetchAaveKitMetrics(chain),
             fetchProtocolData(),
             fetchRevenueData(),
-            fetchTotalMarkets(chain),
         ]);
 
-        const { historicalData, latestTvl, latestBorrows } = buildHistoricalData(protocolData, chain);
-
-        // Compute 30-day change from historical data
-        const latest = historicalData[historicalData.length - 1];
-        const thirtyDaysAgo = historicalData[historicalData.length - 31] || historicalData[0];
-
-        const tvlChange = thirtyDaysAgo
-            ? (latest.tvl - thirtyDaysAgo.tvl) / thirtyDaysAgo.tvl
-            : 0;
-        const borrowChange = thirtyDaysAgo
-            ? (latest.borrows - thirtyDaysAgo.borrows) / thirtyDaysAgo.borrows
-            : 0;
+        const { historicalData } = buildHistoricalData(protocolData, chain);
 
         const responseData = {
-            totalValueLockedUSD: latestTvl,
-            totalBorrowBalanceUSD: latestBorrows,
-            tvl: latestTvl - latestBorrows,
-            totalMarkets,
-            tvlChange,
-            borrowChange,
+            totalMarketSize: metrics.totalMarketSize,
+            totalAvailable: metrics.totalAvailable,
+            totalBorrows: metrics.totalBorrows,
+            totalReserves: metrics.totalReserves,
             protocolRevenueUSD: revenueData.protocolRevenueUSD,
             supplyRevenueUSD: revenueData.supplyRevenueUSD,
             revenueHistory: revenueData.revenueHistory,
@@ -62,40 +113,5 @@ export async function GET(request: Request) {
             { error: 'Failed to fetch overview data' },
             { status: 500 }
         );
-    }
-}
-
-/**
- * Fetch total market count from subgraphs.
- * This is lightweight and subgraphs are reliable for this field.
- */
-async function fetchChainMarketCount(chainId: ChainId): Promise<number> {
-    const config = CHAINS[chainId];
-    const client = getSubgraphClient(chainId);
-    const isAave = config.subgraphType === 'aave';
-    const query = isAave ? GET_AAVE_POOL_COUNT : GET_POOL_COUNT;
-    const { data } = await client.query({ query, fetchPolicy: 'network-only' as const }) as { data: any };
-
-    if (isAave) {
-        return data?.reserves?.length || 0;
-    }
-    return data?.lendingProtocols?.[0]?.totalPoolCount || 0;
-}
-
-async function fetchTotalMarkets(chain: string): Promise<number> {
-    try {
-        if (chain !== 'all' && chain in CHAINS) {
-            return await fetchChainMarketCount(chain as ChainId);
-        }
-
-        const results = await Promise.allSettled(
-            CHAIN_IDS.map((chainId) => fetchChainMarketCount(chainId))
-        );
-
-        return results
-            .filter((r): r is PromiseFulfilledResult<number> => r.status === 'fulfilled')
-            .reduce((sum, r) => sum + r.value, 0);
-    } catch {
-        return 0;
     }
 }

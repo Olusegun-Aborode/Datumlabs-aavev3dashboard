@@ -44,10 +44,10 @@ export default function OverviewPage() {
         : 0;
 
     const counters = [
-        { label: 'Total Supply', value: formatCurrency(data.totalValueLockedUSD), accent: true },
-        { label: 'Total Borrow', value: formatCurrency(data.totalBorrowBalanceUSD), accent: false },
-        { label: 'Net TVL', value: formatCurrency(data.tvl), accent: false, sub: 'Supply − Borrow' },
-        { label: 'Total Markets', value: data.totalMarkets.toString(), accent: false },
+        { label: 'Total Market Size', value: formatCurrency(data.totalMarketSize), accent: true },
+        { label: 'Total Available', value: formatCurrency(data.totalAvailable), accent: false },
+        { label: 'Total Borrows', value: formatCurrency(data.totalBorrows), accent: false },
+        { label: 'Total Markets', value: data.totalReserves.toString(), accent: false },
     ];
 
     return (
@@ -123,7 +123,7 @@ export default function OverviewPage() {
                 <div className="tui-panel">
                     <div className="p-3 flex items-center justify-between">
                         <span className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--text-muted)" }}>
-                            Supply Δ ({timeRange}d)
+                            Market Size Δ ({timeRange}d)
                         </span>
                         <span className="text-sm font-bold" style={{ color: tvlChange >= 0 ? "var(--accent-green)" : "var(--accent-red)" }}>
                             {tvlChange >= 0 ? '↑' : '↓'} {Math.abs(tvlChange).toFixed(2)}%
@@ -133,7 +133,7 @@ export default function OverviewPage() {
                 <div className="tui-panel">
                     <div className="p-3 flex items-center justify-between">
                         <span className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--text-muted)" }}>
-                            Borrow Δ ({timeRange}d)
+                            Borrows Δ ({timeRange}d)
                         </span>
                         <span className="text-sm font-bold" style={{ color: borrowChange >= 0 ? "var(--accent-green)" : "var(--accent-red)" }}>
                             {borrowChange >= 0 ? '↑' : '↓'} {Math.abs(borrowChange).toFixed(2)}%
