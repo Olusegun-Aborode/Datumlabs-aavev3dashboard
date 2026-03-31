@@ -110,9 +110,6 @@ export default function OverviewPage() {
                             >
                                 {c.value}
                             </p>
-                            {'sub' in c && c.sub && (
-                                <span className="text-[9px]" style={{ color: "var(--text-muted)" }}>{c.sub}</span>
-                            )}
                         </div>
                     ))}
                 </div>
