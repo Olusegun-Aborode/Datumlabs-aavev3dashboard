@@ -72,6 +72,9 @@ export default function WalletsPage() {
                         { id: 'optimism', label: 'OP' },
                         { id: 'polygon', label: 'POLY' },
                         { id: 'avalanche', label: 'AVAX' },
+                        { id: 'bnb', label: 'BNB' },
+                        { id: 'gnosis', label: 'GNOSIS' },
+                        { id: 'linea', label: 'LINEA' },
                     ].map((c) => (
                         <button
                             key={c.id}

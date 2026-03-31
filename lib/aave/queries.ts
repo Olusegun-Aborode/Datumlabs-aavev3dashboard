@@ -2,28 +2,27 @@
 import { gql } from '@apollo/client';
 
 /**
- * Query for protocol-wide data used on the Overview page
- * Fetches lending protocol metrics and 90 days of historical snapshots
+ * Lightweight query for total pool count only.
+ * Used by the overview page (TVL/revenue data now comes from DeFi Llama).
  */
-export const GET_PROTOCOL_DATA = gql`
-  query GetProtocolData {
+export const GET_POOL_COUNT = gql`
+  query GetPoolCount {
     lendingProtocols(first: 1) {
-      id
-      name
-      totalValueLockedUSD
-      totalBorrowBalanceUSD
       totalPoolCount
-      cumulativeUniqueUsers
-      cumulativeSupplySideRevenueUSD
-      cumulativeProtocolSideRevenueUSD
     }
-    financialsDailySnapshots(first: 90, orderBy: timestamp, orderDirection: desc) {
-      id
-      timestamp
+  }
+`;
+
+/**
+ * Query for protocol metrics used by the Wallets page.
+ * Fetches TVL, borrow balance, and unique user count.
+ */
+export const GET_PROTOCOL_METRICS = gql`
+  query GetProtocolMetrics {
+    lendingProtocols(first: 1) {
       totalValueLockedUSD
       totalBorrowBalanceUSD
-      dailySupplySideRevenueUSD
-      dailyProtocolSideRevenueUSD
+      cumulativeUniqueUsers
     }
   }
 `;
@@ -113,6 +112,90 @@ export const GET_LIQUIDATIONS = gql`
         id
         name
       }
+    }
+  }
+`;
+
+// ──────────────────────────────────────────────
+// Aave Official Subgraph Queries
+// Used for chains without Messari subgraphs (BNB, Gnosis, Linea)
+// ──────────────────────────────────────────────
+
+export const GET_AAVE_MARKETS = gql`
+  query GetAaveMarkets {
+    reserves(first: 100, orderBy: totalLiquidity, orderDirection: desc) {
+      id
+      symbol
+      name
+      decimals
+      totalLiquidity
+      totalCurrentVariableDebt
+      availableLiquidity
+      liquidityRate
+      variableBorrowRate
+      reserveLiquidationThreshold
+      price {
+        priceInEth
+      }
+    }
+  }
+`;
+
+export const GET_AAVE_ACCOUNTS = gql`
+  query GetAaveAccounts($first: Int!, $skip: Int!) {
+    users(first: $first, skip: $skip, orderBy: id, orderDirection: asc) {
+      id
+      reserves(where: { currentATokenBalance_gt: "0" }) {
+        currentATokenBalance
+        currentVariableDebt
+        reserve {
+          symbol
+          name
+          decimals
+          price {
+            priceInEth
+          }
+          reserveLiquidationThreshold
+        }
+      }
+    }
+  }
+`;
+
+export const GET_AAVE_LIQUIDATIONS = gql`
+  query GetAaveLiquidations($first: Int!, $skip: Int!) {
+    liquidationCalls(first: $first, skip: $skip, orderBy: timestamp, orderDirection: desc) {
+      id
+      txHash
+      timestamp
+      collateralAmount
+      principalAmount
+      collateralReserve {
+        symbol
+        name
+        decimals
+        price {
+          priceInEth
+        }
+      }
+      principalReserve {
+        symbol
+        name
+      }
+      liquidator
+      user {
+        id
+      }
+      collateralAssetPriceUSD
+      borrowAssetPriceUSD
+    }
+  }
+`;
+
+export const GET_AAVE_POOL_COUNT = gql`
+  query GetAavePoolCount {
+    reserves {
+      id
     }
   }
 `;

@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import Image from 'next/image';
+
 
 interface ChartWrapperProps {
     title: string;
@@ -12,6 +12,7 @@ interface ChartWrapperProps {
     selectedRange?: number;
     onRangeChange?: (range: number) => void;
     height?: string;
+    dataSource?: string;
 }
 
 export default function ChartWrapper({
@@ -22,6 +23,7 @@ export default function ChartWrapper({
     selectedRange,
     onRangeChange,
     height = 'h-72 lg:h-80',
+    dataSource,
 }: ChartWrapperProps) {
     const [expanded, setExpanded] = useState(false);
     const chartRef = useRef<HTMLDivElement>(null);
@@ -73,6 +75,21 @@ export default function ChartWrapper({
                         {badge && (
                             <span className="text-[10px] tracking-[0.05em]" style={{ color: 'var(--text-muted)' }}>
                                 {badge}
+                            </span>
+                        )}
+                        {dataSource && (
+                            <span className="relative group cursor-help">
+                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>&#9432;</span>
+                                <span className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-64 p-2 rounded text-[10px] leading-relaxed"
+                                    style={{
+                                        background: 'var(--card)',
+                                        border: '1px solid var(--border-bright)',
+                                        color: 'var(--text-muted)',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                    }}
+                                >
+                                    {dataSource}
+                                </span>
                             </span>
                         )}
                     </div>
@@ -132,10 +149,11 @@ export default function ChartWrapper({
                 {/* Chart area with watermark */}
                 <div className={`relative ${expanded ? 'flex-1' : height}`}>
                     {children}
-                    {/* Watermark — centered like Blockworks */}
+                    {/* Watermark — centered */}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <Image
-                            src="/branding/logo-horizontal.png"
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src="/branding/datumlabs-watermark.svg"
                             alt=""
                             width={180}
                             height={45}

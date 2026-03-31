@@ -1,7 +1,7 @@
 // app/api/aave/liquidations/route.ts
 import { NextResponse } from 'next/server';
 import { getSubgraphClient, CHAINS, CHAIN_IDS, type ChainId } from '@/lib/aave/graphql-client';
-import { GET_LIQUIDATIONS } from '@/lib/aave/queries';
+import { GET_LIQUIDATIONS, GET_AAVE_LIQUIDATIONS } from '@/lib/aave/queries';
 
 const cache = new Map<string, { data: any; lastFetched: number }>();
 
@@ -26,6 +26,51 @@ function transformLiquidations(data: any, chain: string) {
     }));
 }
 
+function transformAaveLiquidations(data: any, chain: string) {
+    return data.liquidationCalls.map((liq: any) => {
+        const decimals = parseInt(liq.collateralReserve?.decimals || '18');
+        const collateralAmount = parseFloat(liq.collateralAmount) / Math.pow(10, decimals);
+        const collateralPriceUSD = parseFloat(liq.collateralAssetPriceUSD || '0');
+        const amountUSD = collateralPriceUSD > 0
+            ? collateralAmount * collateralPriceUSD
+            : (collateralAmount * (parseInt(liq.collateralReserve?.price?.priceInEth || '0') / 1e8));
+
+        return {
+            id: `${chain}-${liq.id}`,
+            hash: liq.txHash,
+            timestamp: parseInt(liq.timestamp),
+            date: new Date(parseInt(liq.timestamp) * 1000).toISOString(),
+            chain,
+            amount: collateralAmount,
+            amountUSD,
+            profitUSD: 0,
+            liquidator: liq.liquidator,
+            liquidatee: liq.user?.id || '',
+            asset: {
+                id: liq.collateralReserve?.symbol || '',
+                symbol: liq.collateralReserve?.symbol || '',
+                name: liq.collateralReserve?.name || '',
+            },
+            market: liq.collateralReserve?.name || '',
+        };
+    });
+}
+
+async function fetchChainLiquidations(chainId: ChainId, pageSize: number, skip: number) {
+    const config = CHAINS[chainId];
+    const client = getSubgraphClient(chainId);
+    const isAave = config.subgraphType === 'aave';
+    const query = isAave ? GET_AAVE_LIQUIDATIONS : GET_LIQUIDATIONS;
+
+    const { data } = await client.query({
+        query,
+        variables: { first: pageSize, skip },
+        fetchPolicy: 'network-only' as const,
+    }) as { data: any };
+
+    return isAave ? transformAaveLiquidations(data, chainId) : transformLiquidations(data, chainId);
+}
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
@@ -44,31 +89,18 @@ export async function GET(request: Request) {
     }
 
     try {
-        const queryOpts = {
-            query: GET_LIQUIDATIONS,
-            variables: { first: pageSize, skip },
-            fetchPolicy: 'network-only' as const,
-        };
-
         let allLiquidations: any[] = [];
 
         if (chain !== 'all' && chain in CHAINS) {
-            const client = getSubgraphClient(chain as ChainId);
-            const { data } = await client.query(queryOpts);
-            allLiquidations = transformLiquidations(data, chain);
+            allLiquidations = await fetchChainLiquidations(chain as ChainId, pageSize, skip);
         } else {
             const results = await Promise.allSettled(
-                CHAIN_IDS.map((chainId) =>
-                    getSubgraphClient(chainId).query(queryOpts).then((res: any) => ({
-                        data: res.data,
-                        chainId,
-                    }))
-                )
+                CHAIN_IDS.map((chainId) => fetchChainLiquidations(chainId, pageSize, skip))
             );
 
             for (const result of results) {
                 if (result.status === 'fulfilled') {
-                    allLiquidations.push(...transformLiquidations(result.value.data, result.value.chainId));
+                    allLiquidations.push(...result.value);
                 }
             }
         }

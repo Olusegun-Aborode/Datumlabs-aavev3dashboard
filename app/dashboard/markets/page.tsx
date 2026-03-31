@@ -88,25 +88,38 @@ export default function MarketsPage() {
                 <h2 className="text-sm font-bold uppercase tracking-[0.1em]" style={{ color: "var(--foreground)" }}>
                     Markets
                 </h2>
-                <div className="flex items-center gap-2">
-                    {[
-                        { id: 'all', label: 'ALL' },
-                        { id: 'ethereum', label: 'ETH' },
-                        { id: 'arbitrum', label: 'ARB' },
-                        { id: 'base', label: 'BASE' },
-                        { id: 'optimism', label: 'OP' },
-                        { id: 'polygon', label: 'POLY' },
-                        { id: 'avalanche', label: 'AVAX' },
-                    ].map((c) => (
-                        <button
-                            key={c.id}
-                            onClick={() => setChain(c.id)}
-                            className={`chain-badge ${chain === c.id ? 'active' : ''}`}
-                        >
-                            {c.label}
-                        </button>
-                    ))}
-                </div>
+                <select
+                    value={chain}
+                    onChange={(e) => setChain(e.target.value)}
+                    className="text-[11px] uppercase tracking-[0.05em] px-3 py-1.5 rounded cursor-pointer outline-none"
+                    style={{
+                        background: 'var(--card)',
+                        color: 'var(--foreground)',
+                        border: '1px solid var(--border-bright)',
+                    }}
+                >
+                    <option value="all">All Chains</option>
+                    <option value="ethereum">Ethereum</option>
+                    <option value="arbitrum">Arbitrum</option>
+                    <option value="base">Base</option>
+                    <option value="optimism">Optimism</option>
+                    <option value="polygon">Polygon</option>
+                    <option value="avalanche">Avalanche</option>
+                    <option value="plasma">Plasma</option>
+                    <option value="mantle">Mantle</option>
+                    <option value="bnb">BNB Chain</option>
+                    <option value="gnosis">Gnosis</option>
+                    <option value="linea">Linea</option>
+                    <option value="ink">Ink</option>
+                    <option value="scroll">Scroll</option>
+                    <option value="sonic">Sonic</option>
+                    <option value="celo">Celo</option>
+                    <option value="zksync">zkSync</option>
+                    <option value="metis">Metis</option>
+                    <option value="soneium">Soneium</option>
+                    <option value="megaeth">MegaETH</option>
+                    <option value="xlayer">X Layer</option>
+                </select>
             </div>
 
             {/* Summary counters */}
@@ -217,7 +230,7 @@ export default function MarketsPage() {
                                             <span className="font-semibold">{market.inputToken.symbol}</span>
                                             {market.chain && (
                                                 <span className="ml-1.5 text-[9px] uppercase" style={{ color: "var(--accent-blue)" }}>
-                                                    [{({ ethereum: 'ETH', arbitrum: 'ARB', base: 'BASE', optimism: 'OP', polygon: 'POLY', avalanche: 'AVAX' } as Record<string, string>)[market.chain] || market.chain}]
+                                                    [{market.chain.toUpperCase()}]
                                                 </span>
                                             )}
                                         </td>

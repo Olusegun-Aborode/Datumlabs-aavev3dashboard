@@ -3,37 +3,61 @@ import { ApolloClient, InMemoryCache, createHttpLink } from '@apollo/client';
 
 const API_KEY = process.env.NEXT_PUBLIC_THEGRAPH_API_KEY;
 
-// Chain configurations
-export const CHAINS: Record<string, { name: string; shortName: string; subgraphUrl: string }> = {
+// Chain configurations with subgraph type
+export const CHAINS: Record<string, { name: string; shortName: string; subgraphUrl: string; subgraphType: 'messari' | 'aave' }> = {
   ethereum: {
     name: 'Ethereum',
     shortName: 'ETH',
     subgraphUrl: process.env.THEGRAPH_SUBGRAPH_URL || '',
+    subgraphType: 'messari',
   },
   arbitrum: {
     name: 'Arbitrum',
     shortName: 'ARB',
     subgraphUrl: process.env.THEGRAPH_ARBITRUM_SUBGRAPH_URL || '',
+    subgraphType: 'messari',
   },
   base: {
     name: 'Base',
     shortName: 'BASE',
     subgraphUrl: process.env.THEGRAPH_BASE_SUBGRAPH_URL || '',
+    subgraphType: 'messari',
   },
   optimism: {
     name: 'Optimism',
     shortName: 'OP',
     subgraphUrl: process.env.THEGRAPH_OPTIMISM_SUBGRAPH_URL || '',
+    subgraphType: 'messari',
   },
   polygon: {
     name: 'Polygon',
     shortName: 'POLY',
     subgraphUrl: process.env.THEGRAPH_POLYGON_SUBGRAPH_URL || '',
+    subgraphType: 'messari',
   },
   avalanche: {
     name: 'Avalanche',
     shortName: 'AVAX',
     subgraphUrl: process.env.THEGRAPH_AVALANCHE_SUBGRAPH_URL || '',
+    subgraphType: 'messari',
+  },
+  bnb: {
+    name: 'BNB Chain',
+    shortName: 'BNB',
+    subgraphUrl: process.env.THEGRAPH_BNB_SUBGRAPH_URL || '',
+    subgraphType: 'aave',
+  },
+  gnosis: {
+    name: 'Gnosis',
+    shortName: 'GNOSIS',
+    subgraphUrl: process.env.THEGRAPH_GNOSIS_SUBGRAPH_URL || '',
+    subgraphType: 'aave',
+  },
+  linea: {
+    name: 'Linea',
+    shortName: 'LINEA',
+    subgraphUrl: process.env.THEGRAPH_LINEA_SUBGRAPH_URL || '',
+    subgraphType: 'aave',
   },
 };
 

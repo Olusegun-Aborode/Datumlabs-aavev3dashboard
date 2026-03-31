@@ -1,7 +1,7 @@
 // app/api/aave/wallets/route.ts
 import { NextResponse } from 'next/server';
 import { getSubgraphClient, CHAINS, CHAIN_IDS, type ChainId } from '@/lib/aave/graphql-client';
-import { GET_ACCOUNTS, GET_PROTOCOL_DATA } from '@/lib/aave/queries';
+import { GET_ACCOUNTS, GET_PROTOCOL_METRICS, GET_AAVE_ACCOUNTS, GET_AAVE_MARKETS } from '@/lib/aave/queries';
 import { calculateHealthFactor } from '@/lib/aave/helpers';
 
 const cache = new Map<string, { data: any; lastFetched: number }>();
@@ -46,12 +46,115 @@ function transformAccounts(accountsData: any, chain: string) {
     });
 }
 
+function transformAaveAccounts(usersData: any, chain: string) {
+    return usersData.users
+        .filter((user: any) => user.reserves && user.reserves.length > 0)
+        .map((user: any) => {
+            let totalCollateralUSD = 0;
+            let totalDebtUSD = 0;
+            let weightedLiqThreshold = 0;
+            const positions: any[] = [];
+
+            for (const ur of user.reserves) {
+                const decimals = parseInt(ur.reserve.decimals);
+                const priceUSD = parseInt(ur.reserve.price?.priceInEth || '0') / 1e8;
+                if (priceUSD === 0) continue;
+
+                const aTokenBalance = parseFloat(ur.currentATokenBalance) / Math.pow(10, decimals);
+                const debtBalance = parseFloat(ur.currentVariableDebt) / Math.pow(10, decimals);
+                const collateralUSD = aTokenBalance * priceUSD;
+                const debtUSD = debtBalance * priceUSD;
+                const liqThreshold = parseInt(ur.reserve.reserveLiquidationThreshold || '8500') / 10000;
+
+                totalCollateralUSD += collateralUSD;
+                totalDebtUSD += debtUSD;
+                weightedLiqThreshold += collateralUSD * liqThreshold;
+
+                if (aTokenBalance > 0) {
+                    positions.push({
+                        market: ur.reserve.name,
+                        symbol: ur.reserve.symbol,
+                        side: 'COLLATERAL',
+                        balance: aTokenBalance,
+                        valueUSD: collateralUSD,
+                    });
+                }
+                if (debtBalance > 0) {
+                    positions.push({
+                        market: ur.reserve.name,
+                        symbol: ur.reserve.symbol,
+                        side: 'BORROWER',
+                        balance: debtBalance,
+                        valueUSD: debtUSD,
+                    });
+                }
+            }
+
+            const avgLiqThreshold = totalCollateralUSD > 0 ? weightedLiqThreshold / totalCollateralUSD : 0.85;
+            const healthFactor = calculateHealthFactor(totalCollateralUSD, totalDebtUSD, avgLiqThreshold);
+
+            return {
+                address: user.id,
+                chain,
+                positionCount: positions.length,
+                openPositionCount: positions.length,
+                totalCollateralUSD,
+                totalDebtUSD,
+                healthFactor: healthFactor === Infinity ? null : healthFactor,
+                positions,
+            };
+        });
+}
+
 function transformProtocolMetrics(protocolDataRaw: any) {
     return protocolDataRaw?.lendingProtocols?.[0] ? {
         totalSupplied: parseFloat(protocolDataRaw.lendingProtocols[0].totalValueLockedUSD),
         totalBorrowed: parseFloat(protocolDataRaw.lendingProtocols[0].totalBorrowBalanceUSD),
         walletCount: parseInt(protocolDataRaw.lendingProtocols[0].cumulativeUniqueUsers || '0', 10),
     } : { totalSupplied: 0, totalBorrowed: 0, walletCount: 0 };
+}
+
+function transformAaveProtocolMetrics(reservesData: any) {
+    let totalSupplied = 0;
+    let totalBorrowed = 0;
+    for (const r of reservesData.reserves || []) {
+        const decimals = parseInt(r.decimals);
+        const priceUSD = parseInt(r.price?.priceInEth || '0') / 1e8;
+        if (priceUSD === 0) continue;
+        totalSupplied += (parseFloat(r.totalLiquidity) / Math.pow(10, decimals)) * priceUSD;
+        totalBorrowed += (parseFloat(r.totalCurrentVariableDebt) / Math.pow(10, decimals)) * priceUSD;
+    }
+    return { totalSupplied, totalBorrowed, walletCount: 0 };
+}
+
+async function fetchChainAccounts(chainId: ChainId, fetchLimit: number, skip: number) {
+    const config = CHAINS[chainId];
+    const client = getSubgraphClient(chainId);
+    const isAave = config.subgraphType === 'aave';
+
+    const accountQuery = isAave ? GET_AAVE_ACCOUNTS : GET_ACCOUNTS;
+    const { data: accountData } = await client.query({
+        query: accountQuery,
+        variables: { first: fetchLimit, skip },
+        fetchPolicy: 'network-only' as const,
+    }) as { data: any };
+
+    const accounts = isAave
+        ? transformAaveAccounts(accountData, chainId)
+        : transformAccounts(accountData, chainId);
+
+    return { accounts, chainId };
+}
+
+async function fetchChainProtocolMetrics(chainId: ChainId) {
+    const config = CHAINS[chainId];
+    const client = getSubgraphClient(chainId);
+    const isAave = config.subgraphType === 'aave';
+
+    const query = isAave ? GET_AAVE_MARKETS : GET_PROTOCOL_METRICS;
+    const { data } = await client.query({ query, fetchPolicy: 'network-only' as const }) as { data: any };
+
+    return isAave ? transformAaveProtocolMetrics(data) : transformProtocolMetrics(data);
 }
 
 export async function GET(request: Request) {
@@ -75,54 +178,33 @@ export async function GET(request: Request) {
     }
 
     try {
-        const accountQueryOpts = {
-            query: GET_ACCOUNTS,
-            variables: { first: fetchLimit, skip },
-            fetchPolicy: 'network-only' as const,
-        };
-        const protocolQueryOpts = { query: GET_PROTOCOL_DATA, fetchPolicy: 'network-only' as const };
-
         let allAccounts: any[] = [];
         let protocolMetrics = { totalSupplied: 0, totalBorrowed: 0, walletCount: 0 };
 
         if (chain !== 'all' && chain in CHAINS) {
-            const client = getSubgraphClient(chain as ChainId);
-            const [accountsResult, protocolResult] = await Promise.all([
-                client.query(accountQueryOpts),
-                client.query(protocolQueryOpts),
+            const [accountResult, metrics] = await Promise.all([
+                fetchChainAccounts(chain as ChainId, fetchLimit, skip),
+                fetchChainProtocolMetrics(chain as ChainId),
             ]);
-            allAccounts = transformAccounts(accountsResult.data, chain);
-            protocolMetrics = transformProtocolMetrics(protocolResult.data);
+            allAccounts = accountResult.accounts;
+            protocolMetrics = metrics;
         } else {
-            // Fetch all chains in parallel
-            const accountResults = await Promise.allSettled(
-                CHAIN_IDS.map((chainId) =>
-                    getSubgraphClient(chainId).query(accountQueryOpts).then((res: any) => ({
-                        data: res.data,
-                        chainId,
-                    }))
-                )
-            );
-            const protocolResults = await Promise.allSettled(
-                CHAIN_IDS.map((chainId) =>
-                    getSubgraphClient(chainId).query(protocolQueryOpts).then((res: any) => ({
-                        data: res.data,
-                    }))
-                )
-            );
+            const [accountResults, metricResults] = await Promise.all([
+                Promise.allSettled(CHAIN_IDS.map((chainId) => fetchChainAccounts(chainId, fetchLimit, skip))),
+                Promise.allSettled(CHAIN_IDS.map((chainId) => fetchChainProtocolMetrics(chainId))),
+            ]);
 
             for (const result of accountResults) {
                 if (result.status === 'fulfilled') {
-                    allAccounts.push(...transformAccounts(result.value.data, result.value.chainId));
+                    allAccounts.push(...result.value.accounts);
                 }
             }
 
-            for (const result of protocolResults) {
+            for (const result of metricResults) {
                 if (result.status === 'fulfilled') {
-                    const metrics = transformProtocolMetrics(result.value.data);
-                    protocolMetrics.totalSupplied += metrics.totalSupplied;
-                    protocolMetrics.totalBorrowed += metrics.totalBorrowed;
-                    protocolMetrics.walletCount += metrics.walletCount;
+                    protocolMetrics.totalSupplied += result.value.totalSupplied;
+                    protocolMetrics.totalBorrowed += result.value.totalBorrowed;
+                    protocolMetrics.walletCount += result.value.walletCount;
                 }
             }
         }
