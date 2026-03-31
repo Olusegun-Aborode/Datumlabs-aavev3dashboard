@@ -40,34 +40,40 @@ export default function LiquidationsPage() {
                 <h2 className="text-sm font-bold uppercase tracking-[0.1em]" style={{ color: "var(--foreground)" }}>
                     Liquidations
                 </h2>
-                <div className="flex items-center gap-2">
-                    {[
-                        { id: 'all', label: 'ALL' },
-                        { id: 'ethereum', label: 'ETH' },
-                        { id: 'arbitrum', label: 'ARB' },
-                        { id: 'base', label: 'BASE' },
-                        { id: 'optimism', label: 'OP' },
-                        { id: 'polygon', label: 'POLY' },
-                        { id: 'avalanche', label: 'AVAX' },
-                        { id: 'bnb', label: 'BNB' },
-                        { id: 'gnosis', label: 'GNOSIS' },
-                        { id: 'linea', label: 'LINEA' },
-                    ].map((c) => (
-                        <button
-                            key={c.id}
-                            onClick={() => { setChain(c.id); setPage(1); }}
-                            className={`chain-badge ${chain === c.id ? 'active' : ''}`}
-                        >
-                            {c.label}
-                        </button>
-                    ))}
-                </div>
+                <select
+                    value={chain}
+                    onChange={(e) => { setChain(e.target.value); setPage(1); }}
+                    className="text-[11px] uppercase tracking-[0.05em] px-3 py-1.5 rounded cursor-pointer outline-none"
+                    style={{
+                        background: 'var(--card)',
+                        color: 'var(--foreground)',
+                        border: '1px solid var(--border-bright)',
+                    }}
+                >
+                    <option value="all">All Chains</option>
+                    <option value="ethereum">Ethereum</option>
+                    <option value="arbitrum">Arbitrum</option>
+                    <option value="base">Base</option>
+                    <option value="optimism">Optimism</option>
+                    <option value="polygon">Polygon</option>
+                    <option value="avalanche">Avalanche</option>
+                    <option value="bnb">BNB Chain</option>
+                    <option value="gnosis">Gnosis</option>
+                    <option value="linea">Linea</option>
+                </select>
             </div>
 
             {/* Summary counters */}
             <div className="tui-panel">
                 <div className="tui-panel-header">
                     <span className="tui-panel-title">Liquidation Summary</span>
+                    <span className="relative group cursor-help text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                        &#9432;
+                        <span className="absolute right-0 top-full mt-1 z-50 hidden group-hover:block w-56 p-2 rounded text-[10px] leading-relaxed normal-case"
+                            style={{ background: 'var(--card)', border: '1px solid var(--border-bright)', color: 'var(--text-muted)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                            Source: The Graph subgraphs (Messari + Aave official). Liquidation events indexed from on-chain LiquidationCall events across 9 chains.
+                        </span>
+                    </span>
                     <span className="tui-panel-badge">Page {page}</span>
                 </div>
                 <div className="grid grid-cols-2">
@@ -96,7 +102,9 @@ export default function LiquidationsPage() {
 
             {/* Bar chart */}
             {aggregations.byAsset.length > 0 && (
-                <ChartWrapper title="Liquidations by Asset" badge="Top 10" height="h-64">
+                <ChartWrapper title="Liquidations by Asset" badge="Top 10" height="h-64"
+                    dataSource="Source: The Graph subgraphs. Collateral seized per liquidation event, aggregated by asset symbol. USD value from on-chain oracle prices at time of liquidation."
+                >
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={aggregations.byAsset.slice(0, 10)}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
@@ -152,7 +160,7 @@ export default function LiquidationsPage() {
                                         <span className="font-semibold">{liq.asset.symbol}</span>
                                         {liq.chain && (
                                             <span className="ml-1 text-[9px]" style={{ color: "var(--accent-blue)" }}>
-                                                [{({ ethereum: 'ETH', arbitrum: 'ARB', base: 'BASE', optimism: 'OP', polygon: 'POLY', avalanche: 'AVAX' } as Record<string, string>)[liq.chain] || liq.chain}]
+                                                [{liq.chain.toUpperCase()}]
                                             </span>
                                         )}
                                     </td>

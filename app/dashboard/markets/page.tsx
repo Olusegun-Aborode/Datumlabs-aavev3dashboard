@@ -126,7 +126,16 @@ export default function MarketsPage() {
             <div className="tui-panel">
                 <div className="tui-panel-header">
                     <span className="tui-panel-title">Market Summary</span>
-                    <span className="tui-panel-badge">{data.markets.length} markets</span>
+                    <div className="flex items-center gap-2">
+                        <span className="relative group cursor-help text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                            &#9432;
+                            <span className="absolute right-0 top-full mt-1 z-50 hidden group-hover:block w-56 p-2 rounded text-[10px] leading-relaxed normal-case"
+                                style={{ background: 'var(--card)', border: '1px solid var(--border-bright)', color: 'var(--text-muted)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                                Source: AaveKit API (api.v3.aave.com). Real-time market data across all 21 Aave V3 chain deployments. Prices from on-chain oracles.
+                            </span>
+                        </span>
+                        <span className="tui-panel-badge">{data.markets.length} markets</span>
+                    </div>
                 </div>
                 <div className="grid grid-cols-3">
                     <div className="p-4 lg:p-5 border-r" style={{ borderColor: "var(--border)" }}>
@@ -145,7 +154,9 @@ export default function MarketsPage() {
             </div>
 
             {/* Distribution chart */}
-            <ChartWrapper title="TVL Distribution" badge="Top 8 markets" height="h-64">
+            <ChartWrapper title="TVL Distribution" badge="Top 8 markets" height="h-64"
+                dataSource="Source: AaveKit API (api.v3.aave.com). Total supply per reserve in USD across all Aave V3 deployments. Top 8 by TVL shown."
+            >
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie

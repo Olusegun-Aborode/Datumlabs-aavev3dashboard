@@ -63,34 +63,40 @@ export default function WalletsPage() {
                 <h2 className="text-sm font-bold uppercase tracking-[0.1em]" style={{ color: "var(--foreground)" }}>
                     Wallets
                 </h2>
-                <div className="flex items-center gap-2">
-                    {[
-                        { id: 'all', label: 'ALL' },
-                        { id: 'ethereum', label: 'ETH' },
-                        { id: 'arbitrum', label: 'ARB' },
-                        { id: 'base', label: 'BASE' },
-                        { id: 'optimism', label: 'OP' },
-                        { id: 'polygon', label: 'POLY' },
-                        { id: 'avalanche', label: 'AVAX' },
-                        { id: 'bnb', label: 'BNB' },
-                        { id: 'gnosis', label: 'GNOSIS' },
-                        { id: 'linea', label: 'LINEA' },
-                    ].map((c) => (
-                        <button
-                            key={c.id}
-                            onClick={() => { setChain(c.id); setPage(1); }}
-                            className={`chain-badge ${chain === c.id ? 'active' : ''}`}
-                        >
-                            {c.label}
-                        </button>
-                    ))}
-                </div>
+                <select
+                    value={chain}
+                    onChange={(e) => { setChain(e.target.value); setPage(1); }}
+                    className="text-[11px] uppercase tracking-[0.05em] px-3 py-1.5 rounded cursor-pointer outline-none"
+                    style={{
+                        background: 'var(--card)',
+                        color: 'var(--foreground)',
+                        border: '1px solid var(--border-bright)',
+                    }}
+                >
+                    <option value="all">All Chains</option>
+                    <option value="ethereum">Ethereum</option>
+                    <option value="arbitrum">Arbitrum</option>
+                    <option value="base">Base</option>
+                    <option value="optimism">Optimism</option>
+                    <option value="polygon">Polygon</option>
+                    <option value="avalanche">Avalanche</option>
+                    <option value="bnb">BNB Chain</option>
+                    <option value="gnosis">Gnosis</option>
+                    <option value="linea">Linea</option>
+                </select>
             </div>
 
             {/* Summary counters */}
             <div className="tui-panel">
                 <div className="tui-panel-header">
                     <span className="tui-panel-title">Wallet Summary</span>
+                    <span className="relative group cursor-help text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                        &#9432;
+                        <span className="absolute right-0 top-full mt-1 z-50 hidden group-hover:block w-56 p-2 rounded text-[10px] leading-relaxed normal-case"
+                            style={{ background: 'var(--card)', border: '1px solid var(--border-bright)', color: 'var(--text-muted)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                            Source: The Graph subgraphs (Messari + Aave official). User positions queried per chain, health factor computed from collateral * liquidation threshold / debt.
+                        </span>
+                    </span>
                 </div>
                 <div className="grid grid-cols-3">
                     <div className="p-4 lg:p-5 border-r" style={{ borderColor: "var(--border)" }}>
