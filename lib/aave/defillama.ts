@@ -1,6 +1,8 @@
 // lib/aave/defillama.ts
 // DeFi Llama API client for Aave protocol data
 
+import { DEFILLAMA_SLUGS, type AaveVersion } from './version';
+
 const BASE_URL = 'https://api.llama.fi';
 
 // DeFi Llama uses capitalized chain names
@@ -35,13 +37,56 @@ interface DefiLlamaBorrowEntry {
 }
 
 /**
- * Fetch Aave V3 protocol data from DeFi Llama.
- * This response can be very large (10MB+), so we extract only what we need.
+ * Fetch Aave protocol data from DeFi Llama for a specific version.
+ * Response can be very large (10MB+), so we extract only what we need.
+ * Pass 'all' to fetch and merge both v3 and v4.
  */
-export async function fetchProtocolData() {
-  const res = await fetch(`${BASE_URL}/protocol/aave-v3`);
-  if (!res.ok) throw new Error(`DeFi Llama protocol API error: ${res.status}`);
+export async function fetchProtocolData(version: AaveVersion = 'v3') {
+  if (version === 'all') {
+    const [v3, v4] = await Promise.all([
+      fetchProtocolData('v3'),
+      // v4 may 404 while a chain has no data yet — fall back to empty-shaped object
+      fetchProtocolData('v4').catch(() => ({ tvl: [], chainTvls: {} })),
+    ]);
+    return mergeProtocolData(v3, v4);
+  }
+  const slug = DEFILLAMA_SLUGS[version];
+  const res = await fetch(`${BASE_URL}/protocol/${slug}`);
+  if (!res.ok) throw new Error(`DeFi Llama protocol API error (${slug}): ${res.status}`);
   return res.json();
+}
+
+/**
+ * Merge two DeFi Llama protocol payloads by summing TVL and chain-level
+ * series by date. Used for the combined v3+v4 view.
+ */
+function mergeProtocolData(a: any, b: any) {
+  const sumByDate = (x: DefiLlamaTvlEntry[] = [], y: DefiLlamaTvlEntry[] = []) => {
+    const map = new Map<number, number>();
+    for (const { date, totalLiquidityUSD } of x) map.set(date, totalLiquidityUSD);
+    for (const { date, totalLiquidityUSD } of y) {
+      map.set(date, (map.get(date) || 0) + totalLiquidityUSD);
+    }
+    return Array.from(map.entries())
+      .sort(([d1], [d2]) => d1 - d2)
+      .map(([date, totalLiquidityUSD]) => ({ date, totalLiquidityUSD }));
+  };
+
+  const mergedChainTvls: Record<string, any> = {};
+  const chainKeys = new Set([
+    ...Object.keys(a?.chainTvls || {}),
+    ...Object.keys(b?.chainTvls || {}),
+  ]);
+  for (const key of chainKeys) {
+    mergedChainTvls[key] = {
+      tvl: sumByDate(a?.chainTvls?.[key]?.tvl, b?.chainTvls?.[key]?.tvl),
+    };
+  }
+
+  return {
+    tvl: sumByDate(a?.tvl, b?.tvl),
+    chainTvls: mergedChainTvls,
+  };
 }
 
 /**
@@ -82,14 +127,12 @@ export function buildHistoricalData(
     borrowEntries = chainTvls['borrowed']?.tvl || [];
   } else {
     const llamaChainName = CHAIN_MAP[chain];
-    if (!llamaChainName) throw new Error(`Unknown chain: ${chain}`);
-
-    const chainData = chainTvls[llamaChainName];
-    if (!chainData) throw new Error(`No DeFi Llama data for chain: ${llamaChainName}`);
-
-    tvlEntries = chainData.tvl || [];
-    // Borrowed data is under "<ChainName>-borrowed" key
-    borrowEntries = chainTvls[`${llamaChainName}-borrowed`]?.tvl || [];
+    // Unknown or missing chain data returns an empty series rather than throwing
+    // so a v4 + (chain with no v4 data) combo renders gracefully as "no data".
+    if (llamaChainName && chainTvls[llamaChainName]) {
+      tvlEntries = chainTvls[llamaChainName].tvl || [];
+      borrowEntries = chainTvls[`${llamaChainName}-borrowed`]?.tvl || [];
+    }
   }
 
   // Trim to last N days to keep response size manageable

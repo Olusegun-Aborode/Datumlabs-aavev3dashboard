@@ -9,12 +9,17 @@ import TuiPanel, { TuiDivider } from '@/components/aave-dashboard/TuiPanel';
 import ChartWrapper from '@/components/aave-dashboard/ChartWrapper';
 import { formatCurrency, formatPercentage } from '@/lib/aave/helpers';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { useAaveVersion } from '@/components/aave-dashboard/useAaveVersion';
+import { type AaveVersion } from '@/lib/aave/version';
 
 const COLORS = ['#5B7FFF', '#10B981', '#F59E0B', '#B44AFF', '#00D4FF', '#FF6B35', '#EC4899', '#6366F1'];
 
-async function getMarketsData(chain?: string) {
-    const params = chain && chain !== 'all' ? `?chain=${chain}` : '';
-    const res = await fetch(`/api/aave/markets${params}`);
+async function getMarketsData(version: AaveVersion, chain?: string) {
+    const params = new URLSearchParams();
+    if (chain && chain !== 'all') params.set('chain', chain);
+    if (version !== 'v3') params.set('version', version);
+    const qs = params.toString();
+    const res = await fetch(`/api/aave/markets${qs ? `?${qs}` : ''}`);
     if (!res.ok) throw new Error('Failed to fetch markets data');
     return res.json();
 }
@@ -26,10 +31,11 @@ export default function MarketsPage() {
     const [chain, setChain] = useState<string>('all');
     const [page, setPage] = useState(1);
     const pageSize = 20;
+    const { version } = useAaveVersion();
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['marketsData', chain],
-        queryFn: () => getMarketsData(chain),
+        queryKey: ['marketsData', version, chain],
+        queryFn: () => getMarketsData(version, chain),
     });
 
     const filteredMarkets = useMemo(() => {
@@ -71,8 +77,12 @@ export default function MarketsPage() {
     if (!data || !data.markets) return <ErrorState message="No market data available." />;
 
     const totalSupply = data.markets.reduce((sum: number, m: any) => sum + m.totalDepositBalanceUSD, 0);
-    const avgUtilization = data.markets.reduce((sum: number, m: any) => sum + m.utilization, 0) / data.markets.length;
-    const highestApy = Math.max(...data.markets.map((m: any) => m.rates.find((r: any) => r.side === 'LENDER')?.rate || 0));
+    const avgUtilization = data.markets.length > 0
+        ? data.markets.reduce((sum: number, m: any) => sum + m.utilization, 0) / data.markets.length
+        : 0;
+    const highestApy = data.markets.length > 0
+        ? Math.max(...data.markets.map((m: any) => m.rates.find((r: any) => r.side === 'LENDER')?.rate || 0))
+        : 0;
 
     const handleSort = (field: typeof sortBy) => {
         if (sortBy === field) {

@@ -3,6 +3,126 @@ import { NextResponse } from 'next/server';
 import { getSubgraphClient, CHAINS, CHAIN_IDS, type ChainId } from '@/lib/aave/graphql-client';
 import { GET_ACCOUNTS, GET_PROTOCOL_METRICS, GET_AAVE_ACCOUNTS, GET_AAVE_MARKETS } from '@/lib/aave/queries';
 import { calculateHealthFactor } from '@/lib/aave/helpers';
+import { parseVersion } from '@/lib/aave/version';
+import { AAVEKIT_URLS, V4_CHAIN_IDS } from '@/lib/aave/version';
+
+// AaveKit v4 doesn't expose a "list all users" endpoint. Instead we derive the
+// active-user set from the recent activities feed (SUPPLY + BORROW), then fan
+// out to userSummary for each unique address. This gives us the N most-recently
+// active wallets, which matches what the v3 subgraph query returns in practice.
+const V4_ACTIVE_USERS_QUERY = `
+  query V4ActiveUsers($chainIds: [Int!]!, $pageSize: PageSize!) {
+    activities(request: {
+      query: { chainIds: $chainIds }
+      types: [SUPPLY, BORROW]
+      pageSize: $pageSize
+    }) {
+      items {
+        __typename
+        ... on SupplyActivity { user chain { chainId name } }
+        ... on BorrowActivity { user chain { chainId name } }
+      }
+    }
+  }
+`;
+
+const V4_USER_SUMMARY_QUERY = `
+  query V4UserSummary($user: EvmAddress!) {
+    userSummary(request: { user: $user }) {
+      totalPositions
+      totalCollateral { value }
+      totalDebt { value }
+      lowestHealthFactor
+    }
+  }
+`;
+
+async function fetchV4ActiveUsers(): Promise<{ address: string; chain: string }[]> {
+    const res = await fetch(AAVEKIT_URLS.v4, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            query: V4_ACTIVE_USERS_QUERY,
+            variables: { chainIds: V4_CHAIN_IDS, pageSize: 'FIFTY' },
+        }),
+    });
+
+    if (!res.ok) throw new Error(`AaveKit v4 activities error: ${res.status}`);
+    const { data, errors } = await res.json();
+    if (errors) throw new Error(errors[0]?.message || 'v4 activities query error');
+
+    // Dedupe by address while preserving first-seen order.
+    const seen = new Set<string>();
+    const users: { address: string; chain: string }[] = [];
+    for (const item of data?.activities?.items || []) {
+        if (!item?.user || seen.has(item.user)) continue;
+        seen.add(item.user);
+        users.push({
+            address: item.user,
+            chain: (item.chain?.name || 'ethereum').toLowerCase(),
+        });
+    }
+    return users;
+}
+
+async function fetchV4UserSummary(address: string) {
+    const res = await fetch(AAVEKIT_URLS.v4, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            query: V4_USER_SUMMARY_QUERY,
+            variables: { user: address },
+        }),
+    });
+    if (!res.ok) throw new Error(`AaveKit v4 userSummary error: ${res.status}`);
+    const { data, errors } = await res.json();
+    if (errors) throw new Error(errors[0]?.message || 'v4 userSummary query error');
+    return data?.userSummary;
+}
+
+async function fetchV4Wallets(): Promise<{ accounts: any[]; protocol: any }> {
+    const activeUsers = await fetchV4ActiveUsers();
+
+    // Fan out userSummary calls in parallel. Up to 50 addresses → 50 concurrent
+    // requests to AaveKit. Using allSettled so one bad address doesn't sink the list.
+    const summaryResults = await Promise.allSettled(
+        activeUsers.map(u => fetchV4UserSummary(u.address))
+    );
+
+    const accounts: any[] = [];
+    let totalSupplied = 0;
+    let totalBorrowed = 0;
+
+    summaryResults.forEach((r, i) => {
+        if (r.status !== 'fulfilled' || !r.value) return;
+        const s = r.value;
+        const collateral = parseFloat(s.totalCollateral?.value || '0');
+        const debt = parseFloat(s.totalDebt?.value || '0');
+        totalSupplied += collateral;
+        totalBorrowed += debt;
+
+        accounts.push({
+            address: activeUsers[i].address,
+            chain: activeUsers[i].chain,
+            version: 'v4',
+            positionCount: s.totalPositions || 0,
+            openPositionCount: s.totalPositions || 0,
+            totalCollateralUSD: collateral,
+            totalDebtUSD: debt,
+            healthFactor: s.lowestHealthFactor ? parseFloat(s.lowestHealthFactor) : null,
+            positions: [],
+        });
+    });
+
+    return {
+        accounts,
+        protocol: {
+            totalSupplied,
+            totalBorrowed,
+            walletCount: accounts.length,
+        },
+    };
+}
 
 const cache = new Map<string, { data: any; lastFetched: number }>();
 
@@ -164,17 +284,54 @@ export async function GET(request: Request) {
     const hideEmpty = searchParams.get('hideEmpty') === 'true';
     const hideNoBorrow = searchParams.get('hideNoBorrow') === 'true';
     const chain = searchParams.get('chain') || 'all';
+    const version = parseVersion(searchParams.get('version'));
 
     const fetchLimit = (hideEmpty || hideNoBorrow) ? pageSize * 3 : pageSize;
     const skip = (page - 1) * pageSize;
 
-    const cacheKey = `wallets-${chain}-${page}-${pageSize}-${hideEmpty}-${hideNoBorrow}`;
-    const now = Date.now();
-    const cacheTTL = parseInt(process.env.CACHE_TTL_WALLETS || '120', 10) * 1000;
+    const cacheKey = `wallets-${version}-${chain}-${page}-${pageSize}-${hideEmpty}-${hideNoBorrow}`;
 
     const cached = cache.get(cacheKey);
+    const now = Date.now();
+    const cacheTTL = parseInt(process.env.CACHE_TTL_WALLETS || '120', 10) * 1000;
     if (cached && now - cached.lastFetched < cacheTTL) {
         return NextResponse.json(cached.data);
+    }
+
+    // v4-only short-circuit: fetch the recent-user feed and fan out to userSummary.
+    // v4 has no chain filter at this stage (Ethereum only) so we ignore the chain param.
+    if (version === 'v4') {
+        try {
+            const { accounts, protocol } = await fetchV4Wallets();
+            let filtered = accounts;
+            if (hideEmpty) filtered = filtered.filter(a => a.totalCollateralUSD > 0.01 || a.totalDebtUSD > 0.01);
+            if (hideNoBorrow) filtered = filtered.filter(a => a.totalDebtUSD > 0.01);
+            filtered.sort((a, b) => b.totalCollateralUSD - a.totalCollateralUSD);
+
+            const sliced = filtered.slice(skip, skip + pageSize);
+            const response = {
+                accounts: sliced,
+                protocol,
+                page,
+                pageSize,
+                hasMore: filtered.length > skip + pageSize,
+                ...(sliced.length === 0 && filtered.length === 0 ? {
+                    notice: 'No active Aave v4 wallets found yet. This view samples recent SUPPLY/BORROW activities; more positions will appear as v4 usage grows.',
+                } : {}),
+            };
+            cache.set(cacheKey, { data: response, lastFetched: now });
+            return NextResponse.json(response);
+        } catch (e) {
+            console.error('v4 wallets fetch failed:', e);
+            return NextResponse.json({
+                accounts: [],
+                protocol: { totalSupplied: 0, totalBorrowed: 0, walletCount: 0 },
+                page,
+                pageSize,
+                hasMore: false,
+                notice: 'v4 wallet data temporarily unavailable.',
+            });
+        }
     }
 
     try {
@@ -225,6 +382,9 @@ export async function GET(request: Request) {
             page,
             pageSize,
             hasMore: allAccounts.length > pageSize,
+            ...(version === 'all' ? {
+                notice: 'Combined view shows Aave v3 wallet data. Switch to V4 to see active v4 wallets (sampled from recent activity).',
+            } : {}),
         };
 
         cache.set(cacheKey, { data: responseData, lastFetched: now });

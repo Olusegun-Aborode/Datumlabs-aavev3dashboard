@@ -1,8 +1,13 @@
 // app/api/aave/markets/route.ts
-// Uses AaveKit API (api.v3.aave.com) — single endpoint for all chains
+// Routes markets queries to AaveKit v3 or v4 endpoints based on ?version= param.
 import { NextResponse } from 'next/server';
-
-const AAVEKIT_URL = 'https://api.v3.aave.com/graphql';
+import {
+  AAVEKIT_URLS,
+  V4_CHAIN_IDS,
+  parseVersion,
+  versionsToQuery,
+  type AaveVersion,
+} from '@/lib/aave/version';
 
 // All supported chains with their AaveKit chain IDs
 const AAVEKIT_CHAINS: Record<string, { chainId: number; name: string; shortName: string }> = {
@@ -28,7 +33,8 @@ const AAVEKIT_CHAINS: Record<string, { chainId: number; name: string; shortName:
     xlayer: { chainId: 196, name: 'X Layer', shortName: 'XLAYER' },
 };
 
-const MARKETS_QUERY = `
+// v3 schema: /markets endpoint returns an array of Markets, each containing reserves.
+const MARKETS_QUERY_V3 = `
   query GetMarkets($chainIds: [ChainId!]!) {
     markets(request: { chainIds: $chainIds }) {
       name
@@ -52,6 +58,33 @@ const MARKETS_QUERY = `
   }
 `;
 
+// v4 uses hub-and-spoke architecture: reserves are queried directly with a
+// different request shape, and amounts come nested under summary.supplied/borrowed
+// with Erc20Amount.exchange.value as the USD figure.
+const MARKETS_QUERY_V4 = `
+  query GetV4Reserves($chainIds: [Int!]!) {
+    reserves(request: {
+      query: { chainIds: $chainIds },
+      filter: ALL,
+      orderBy: { supplyAvailable: DESC }
+    }) {
+      id
+      chain { name chainId }
+      asset {
+        underlying {
+          info { name symbol decimals }
+        }
+      }
+      summary {
+        supplied { amount { value } exchange { value } }
+        borrowed { amount { value } exchange { value } }
+        supplyApy { value }
+        borrowApy { value }
+      }
+    }
+  }
+`;
+
 // Reverse lookup: chainId -> our chain key
 const CHAIN_ID_TO_KEY: Record<number, string> = {};
 for (const [key, config] of Object.entries(AAVEKIT_CHAINS)) {
@@ -60,7 +93,7 @@ for (const [key, config] of Object.entries(AAVEKIT_CHAINS)) {
 
 const cache = new Map<string, { data: any; lastFetched: number }>();
 
-function transformAaveKitMarkets(marketsData: any[]) {
+function transformV3Markets(marketsData: any[]) {
     const allMarkets: any[] = [];
 
     for (const market of marketsData) {
@@ -76,10 +109,11 @@ function transformAaveKitMarkets(marketsData: any[]) {
             const utilization = parseFloat(reserve.borrowInfo?.utilizationRate?.value) || 0;
 
             allMarkets.push({
-                id: `${chainKey}-${market.name}-${i}`,
+                id: `v3-${chainKey}-${market.name}-${i}`,
                 name: reserve.underlyingToken.name,
                 chain: chainKey,
                 market: market.name,
+                version: 'v3',
                 inputToken: {
                     symbol: reserve.underlyingToken.symbol,
                     name: reserve.underlyingToken.name,
@@ -100,13 +134,89 @@ function transformAaveKitMarkets(marketsData: any[]) {
     return allMarkets;
 }
 
+// v4 returns a flat list of reserves (no enclosing "markets"). Each reserve is
+// one hub-asset position. Utilization is derived from supplied/borrowed since
+// the v4 schema doesn't expose it as a dedicated field.
+function transformV4Reserves(reservesData: any[]) {
+    return reservesData.map((r: any, i: number) => {
+        const chainKey = CHAIN_ID_TO_KEY[r.chain.chainId] || r.chain.name.toLowerCase();
+        const info = r.asset?.underlying?.info || {};
+        const suppliedTokens = parseFloat(r.summary?.supplied?.amount?.value) || 0;
+        const suppliedUSD = parseFloat(r.summary?.supplied?.exchange?.value) || 0;
+        const borrowedUSD = parseFloat(r.summary?.borrowed?.exchange?.value) || 0;
+        const supplyRate = parseFloat(r.summary?.supplyApy?.value) || 0;
+        const borrowRate = parseFloat(r.summary?.borrowApy?.value) || 0;
+        const utilization = suppliedUSD > 0 ? (borrowedUSD / suppliedUSD) : 0;
+        const priceUSD = suppliedTokens > 0 ? suppliedUSD / suppliedTokens : 0;
+
+        return {
+            id: `v4-${chainKey}-${r.id}-${i}`,
+            name: info.name || info.symbol || 'Unknown',
+            chain: chainKey,
+            market: `Aave V4 ${r.chain.name}`,
+            version: 'v4',
+            inputToken: {
+                symbol: info.symbol || '',
+                name: info.name || '',
+            },
+            totalValueLockedUSD: suppliedUSD,
+            totalBorrowBalanceUSD: borrowedUSD,
+            totalDepositBalanceUSD: suppliedUSD,
+            inputTokenPriceUSD: priceUSD,
+            rates: [
+                { side: 'LENDER', rate: supplyRate },
+                { side: 'BORROWER', rate: borrowRate },
+            ],
+            utilization: utilization * 100,
+        };
+    });
+}
+
+async function fetchMarketsForVersion(
+    version: Exclude<AaveVersion, 'all'>,
+    chain: string,
+): Promise<any[]> {
+    // v4 is currently Ethereum-only. Filter any requested chainIds against the
+    // version's supported set so we don't send unsupported IDs upstream.
+    const allowedChainIds = version === 'v4' ? new Set(V4_CHAIN_IDS) : null;
+
+    let chainIds: number[];
+    if (chain !== 'all' && chain in AAVEKIT_CHAINS) {
+        const id = AAVEKIT_CHAINS[chain].chainId;
+        if (allowedChainIds && !allowedChainIds.has(id)) return [];
+        chainIds = [id];
+    } else {
+        chainIds = Object.values(AAVEKIT_CHAINS)
+            .map(c => c.chainId)
+            .filter(id => !allowedChainIds || allowedChainIds.has(id));
+    }
+
+    if (chainIds.length === 0) return [];
+
+    const query = version === 'v4' ? MARKETS_QUERY_V4 : MARKETS_QUERY_V3;
+    const res = await fetch(AAVEKIT_URLS[version], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables: { chainIds } }),
+    });
+
+    if (!res.ok) throw new Error(`AaveKit ${version} API error: ${res.status}`);
+    const { data, errors } = await res.json();
+    if (errors) throw new Error(errors[0]?.message || `AaveKit ${version} query error`);
+
+    return version === 'v4'
+        ? transformV4Reserves(data.reserves || [])
+        : transformV3Markets(data.markets || []);
+}
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const chain = searchParams.get('chain') || 'all';
+    const version = parseVersion(searchParams.get('version'));
 
     const now = Date.now();
     const cacheTTL = parseInt(process.env.CACHE_TTL_MARKETS || '30', 10) * 1000;
-    const cacheKey = `markets-${chain}`;
+    const cacheKey = `markets-${version}-${chain}`;
 
     const cached = cache.get(cacheKey);
     if (cached && now - cached.lastFetched < cacheTTL) {
@@ -114,28 +224,21 @@ export async function GET(request: Request) {
     }
 
     try {
-        // Determine which chain IDs to query
-        let chainIds: number[];
-        if (chain !== 'all' && chain in AAVEKIT_CHAINS) {
-            chainIds = [AAVEKIT_CHAINS[chain].chainId];
-        } else {
-            chainIds = Object.values(AAVEKIT_CHAINS).map(c => c.chainId);
-        }
+        const targets = versionsToQuery(version);
+        const results = await Promise.allSettled(
+            targets.map(v => fetchMarketsForVersion(v, chain))
+        );
 
-        const res = await fetch(AAVEKIT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: MARKETS_QUERY, variables: { chainIds } }),
+        let allMarkets: any[] = [];
+        const warnings: string[] = [];
+        results.forEach((r, i) => {
+            if (r.status === 'fulfilled') allMarkets.push(...r.value);
+            else warnings.push(`${targets[i]}: ${r.reason?.message || 'fetch failed'}`);
         });
 
-        if (!res.ok) throw new Error(`AaveKit API error: ${res.status}`);
-        const { data, errors } = await res.json();
-        if (errors) throw new Error(errors[0]?.message || 'AaveKit query error');
-
-        let allMarkets = transformAaveKitMarkets(data.markets);
         allMarkets.sort((a, b) => b.totalValueLockedUSD - a.totalValueLockedUSD);
 
-        const response = { markets: allMarkets };
+        const response = { markets: allMarkets, version, warnings };
         cache.set(cacheKey, { data: response, lastFetched: now });
         return NextResponse.json(response);
     } catch (error) {

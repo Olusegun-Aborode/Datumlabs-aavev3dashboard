@@ -6,39 +6,48 @@ import { LoadingState } from '@/components/aave-dashboard/LoadingState';
 import { ErrorState } from '@/components/aave-dashboard/ErrorState';
 import TuiPanel, { TuiDivider } from '@/components/aave-dashboard/TuiPanel';
 import { formatCurrency, formatPercentage } from '@/lib/aave/helpers';
+import { useAaveVersion } from '@/components/aave-dashboard/useAaveVersion';
+import { type AaveVersion } from '@/lib/aave/version';
 
-async function getOverviewData() {
-    const res = await fetch('/api/aave/overview');
+function withVersion(url: string, version: AaveVersion) {
+    if (version === 'v3') return url;
+    return url.includes('?') ? `${url}&version=${version}` : `${url}?version=${version}`;
+}
+
+async function getOverviewData(version: AaveVersion) {
+    const res = await fetch(withVersion('/api/aave/overview', version));
     if (!res.ok) throw new Error('Failed to fetch data');
     return res.json();
 }
 
-async function getMarketsData() {
-    const res = await fetch('/api/aave/markets');
+async function getMarketsData(version: AaveVersion) {
+    const res = await fetch(withVersion('/api/aave/markets', version));
     if (!res.ok) throw new Error('Failed to fetch markets data');
     return res.json();
 }
 
-async function getWalletsData() {
-    const res = await fetch('/api/aave/wallets?page=1&pageSize=100');
+async function getWalletsData(version: AaveVersion) {
+    const res = await fetch(withVersion('/api/aave/wallets?page=1&pageSize=100', version));
     if (!res.ok) throw new Error('Failed to fetch wallets data');
     return res.json();
 }
 
 export default function InsightsPage() {
+    const { version } = useAaveVersion();
+
     const { data: overviewData, isLoading: overviewLoading } = useQuery({
-        queryKey: ['overviewData'],
-        queryFn: getOverviewData,
+        queryKey: ['overviewData', version],
+        queryFn: () => getOverviewData(version),
     });
 
     const { data: marketsData, isLoading: marketsLoading } = useQuery({
-        queryKey: ['marketsData'],
-        queryFn: getMarketsData,
+        queryKey: ['marketsData', version],
+        queryFn: () => getMarketsData(version),
     });
 
     const { data: walletsData, isLoading: walletsLoading } = useQuery({
-        queryKey: ['walletsDataInsights'],
-        queryFn: getWalletsData,
+        queryKey: ['walletsDataInsights', version],
+        queryFn: () => getWalletsData(version),
     });
 
     if (overviewLoading || marketsLoading || walletsLoading) return <LoadingState />;
@@ -46,7 +55,11 @@ export default function InsightsPage() {
 
     const markets = marketsData?.markets || [];
     const accounts = walletsData?.accounts || [];
-    const utilization = overviewData.totalBorrowBalanceUSD / overviewData.totalValueLockedUSD;
+    const totalValueLockedUSD = overviewData.totalMarketSize || 0;
+    const totalBorrowBalanceUSD = overviewData.totalBorrows || 0;
+    const utilization = totalValueLockedUSD > 0
+        ? totalBorrowBalanceUSD / totalValueLockedUSD
+        : 0;
 
     const topMarkets = [...markets]
         .sort((a: any, b: any) => b.totalDepositBalanceUSD - a.totalDepositBalanceUSD)
@@ -61,6 +74,29 @@ export default function InsightsPage() {
 
     const chainLabels: Record<string, string> = { ethereum: 'ETH', arbitrum: 'ARB', base: 'BASE', optimism: 'OP', polygon: 'POLY', avalanche: 'AVAX' };
 
+    // Per-version descriptive content. v4 has the hub-and-spoke architecture
+    // and launched on Ethereum only; v3 has the historical multi-chain footprint.
+    const versionCopy = version === 'v4'
+        ? {
+            title: 'About Aave V4',
+            blurb: 'Aave V4 is the latest major release of the decentralised lending protocol, built around a hub-and-spoke architecture. Liquidity is pooled into hubs while spokes expose that liquidity to borrowers across markets, enabling unified liquidity and more flexible risk parameters.',
+            networks: 'ETH',
+            versionLabel: 'V4',
+        }
+        : version === 'all'
+        ? {
+            title: 'About Aave V3 + V4',
+            blurb: 'Aave is a decentralised lending protocol. V3 runs across many EVM chains with isolated markets per deployment; V4 introduces a hub-and-spoke architecture with unified liquidity. This view aggregates both versions.',
+            networks: 'ETH + ARB + BASE + OP + POLY + AVAX + ...',
+            versionLabel: 'V3 + V4',
+        }
+        : {
+            title: 'About Aave V3',
+            blurb: 'Aave V3 is a decentralised lending protocol deployed across Ethereum, Arbitrum, Base, Optimism, Polygon, Avalanche and several other EVM chains. Users deposit crypto assets to earn interest, creating liquidity pools that others can borrow from. Borrowers must provide overcollateralised positions to ensure lender safety.',
+            networks: 'ETH + ARB + BASE + OP + POLY + AVAX',
+            versionLabel: 'V3',
+        };
+
     return (
         <div className="space-y-4">
             {/* Header */}
@@ -74,14 +110,9 @@ export default function InsightsPage() {
             </div>
 
             {/* About */}
-            <TuiPanel title="About Aave V3" badge="Protocol">
+            <TuiPanel title={versionCopy.title} badge="Protocol">
                 <div className="space-y-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                    <p>
-                        Aave V3 is a <span style={{ color: "var(--foreground)" }}>decentralised lending protocol</span> deployed
-                        across Ethereum, Arbitrum, Base, Optimism, Polygon, and Avalanche.
-                        Users deposit crypto assets to earn interest, creating liquidity pools that others can borrow from.
-                        Borrowers must provide overcollateralised positions to ensure lender safety.
-                    </p>
+                    <p>{versionCopy.blurb}</p>
                     <p>
                         Interest rates adjust automatically based on supply and demand. The protocol uses a
                         <span style={{ color: "var(--foreground)" }}> health factor</span> system to manage risk —
@@ -90,8 +121,8 @@ export default function InsightsPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-3 mt-4">
                     {[
-                        { label: 'Networks', value: 'ETH + ARB + BASE + OP + POLY + AVAX' },
-                        { label: 'Version', value: 'V3' },
+                        { label: 'Networks', value: versionCopy.networks },
+                        { label: 'Version', value: versionCopy.versionLabel },
                         { label: 'Markets', value: markets.length.toString() },
                     ].map((item) => (
                         <div key={item.label} className="p-3" style={{ background: "var(--background)", borderRadius: "4px" }}>
@@ -111,10 +142,10 @@ export default function InsightsPage() {
                 </div>
                 <div className="grid grid-cols-2 lg:grid-cols-4">
                     {[
-                        { label: 'Total Value Locked', value: formatCurrency(overviewData.totalValueLockedUSD), color: 'var(--accent-orange)', change: `${overviewData.tvlChange > 0 ? '↑' : '↓'} ${Math.abs(overviewData.tvlChange * 100).toFixed(2)}%` },
-                        { label: 'Total Borrowed', value: formatCurrency(overviewData.totalBorrowBalanceUSD), color: 'var(--accent-yellow)', change: `${overviewData.borrowChange > 0 ? '↑' : '↓'} ${Math.abs(overviewData.borrowChange * 100).toFixed(2)}%` },
+                        { label: 'Total Value Locked', value: formatCurrency(totalValueLockedUSD), color: 'var(--accent-orange)', change: `${overviewData.totalReserves || 0} markets` },
+                        { label: 'Total Borrowed', value: formatCurrency(totalBorrowBalanceUSD), color: 'var(--accent-yellow)', change: formatCurrency(overviewData.totalAvailable || 0) + ' available' },
                         { label: 'Utilization Rate', value: formatPercentage(utilization * 100), color: 'var(--foreground)', change: utilization > 0.7 ? 'High' : utilization > 0.4 ? 'Moderate' : 'Low' },
-                        { label: 'Supply Revenue', value: formatCurrency(overviewData.supplyRevenueUSD), color: 'var(--accent-blue)', change: 'Cumulative' },
+                        { label: 'Supply Revenue', value: overviewData.revenueAvailable === false ? 'N/A' : formatCurrency(overviewData.supplyRevenueUSD || 0), color: 'var(--accent-blue)', change: overviewData.revenueAvailable === false ? 'Not split by version' : 'Cumulative' },
                     ].map((m, i) => (
                         <div key={m.label} className={`p-4 lg:p-5 ${i < 3 ? 'border-r' : ''}`} style={{ borderColor: "var(--border)" }}>
                             <p className="counter-label">{m.label}</p>

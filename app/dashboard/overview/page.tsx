@@ -9,37 +9,52 @@ import TuiPanel, { TuiDivider } from '@/components/aave-dashboard/TuiPanel';
 import ChartWrapper from '@/components/aave-dashboard/ChartWrapper';
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { formatCurrency } from '@/lib/aave/helpers';
+import { useAaveVersion } from '@/components/aave-dashboard/useAaveVersion';
+import { DEFILLAMA_SLUGS, type AaveVersion } from '@/lib/aave/version';
 
-async function getOverviewData(chain?: string) {
-    const params = chain && chain !== 'all' ? `?chain=${chain}` : '';
-    const res = await fetch(`/api/aave/overview${params}`);
+async function getOverviewData(version: AaveVersion, chain?: string) {
+    const params = new URLSearchParams();
+    if (chain && chain !== 'all') params.set('chain', chain);
+    if (version !== 'v3') params.set('version', version);
+    const qs = params.toString();
+    const res = await fetch(`/api/aave/overview${qs ? `?${qs}` : ''}`);
     if (!res.ok) throw new Error('Failed to fetch data');
     return res.json();
+}
+
+function describeSource(version: AaveVersion): string {
+    if (version === 'all') {
+        return 'Source: DeFi Llama merged /protocol/aave-v3 + /protocol/aave-v4 (TVL and borrow series summed by date).';
+    }
+    const slug = DEFILLAMA_SLUGS[version];
+    return `Source: DeFi Llama API (/protocol/${slug}). Supply = totalLiquidityUSD per chain. Borrow = totalBorrowBalanceUSD per chain. Aggregated daily across all Aave ${version.toUpperCase()} deployments.`;
 }
 
 export default function OverviewPage() {
     const [timeRange, setTimeRange] = useState(90);
     const [revenueTimeRange, setRevenueTimeRange] = useState(90);
     const [chain, setChain] = useState<string>('all');
+    const { version } = useAaveVersion();
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['overviewData', chain],
-        queryFn: () => getOverviewData(chain),
+        queryKey: ['overviewData', version, chain],
+        queryFn: () => getOverviewData(version, chain),
     });
 
     if (isLoading) return <LoadingState />;
     if (error) return <ErrorState message="Failed to load overview data. Please try again." />;
 
-    const filteredData = data.historicalData.slice(-timeRange);
+    const historicalData: { date: string; tvl: number; borrows: number }[] = data.historicalData || [];
+    const filteredData = historicalData.slice(-timeRange);
 
-    const oldSnapshot = data.historicalData[data.historicalData.length - timeRange] || data.historicalData[0];
-    const latestSnapshot = data.historicalData[data.historicalData.length - 1];
+    const oldSnapshot = historicalData[historicalData.length - timeRange] || historicalData[0];
+    const latestSnapshot = historicalData[historicalData.length - 1];
 
-    const tvlChange = oldSnapshot
+    const tvlChange = oldSnapshot && latestSnapshot && oldSnapshot.tvl
         ? ((latestSnapshot.tvl - oldSnapshot.tvl) / oldSnapshot.tvl) * 100
         : 0;
 
-    const borrowChange = oldSnapshot
+    const borrowChange = oldSnapshot && latestSnapshot && oldSnapshot.borrows
         ? ((latestSnapshot.borrows - oldSnapshot.borrows) / oldSnapshot.borrows) * 100
         : 0;
 
@@ -146,7 +161,7 @@ export default function OverviewPage() {
                 timeRanges={[30, 90, 180]}
                 selectedRange={timeRange}
                 onRangeChange={setTimeRange}
-                dataSource="Source: DeFi Llama API (/protocol/aave-v3). Supply = totalLiquidityUSD per chain. Borrow = totalBorrowBalanceUSD per chain. Aggregated daily across all Aave V3 deployments."
+                dataSource={describeSource(version)}
                 legend={[
                     { label: 'Total Supply', color: '#10B981' },
                     { label: 'Total Borrow', color: '#F59E0B' },
@@ -202,6 +217,19 @@ export default function OverviewPage() {
             </ChartWrapper>
 
             <TuiDivider label="Revenue" />
+
+            {data.revenueAvailable === false && (
+                <div
+                    className="p-3 text-[11px] rounded"
+                    style={{
+                        background: 'var(--card)',
+                        border: '1px solid var(--accent-orange)',
+                        color: 'var(--text-muted)',
+                    }}
+                >
+                    <span style={{ color: 'var(--accent-orange)' }}>ℹ</span> DeFi Llama does not yet split Aave fees per version. V4-specific revenue isn't available — switch to ALL or V3 to see the aggregated protocol fees.
+                </div>
+            )}
 
             {/* Revenue summary */}
             <div className="grid grid-cols-2 gap-3">

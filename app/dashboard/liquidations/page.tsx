@@ -9,10 +9,17 @@ import TuiPanel, { TuiDivider } from '@/components/aave-dashboard/TuiPanel';
 import ChartWrapper from '@/components/aave-dashboard/ChartWrapper';
 import { formatCurrency, formatAddress, formatDateTime } from '@/lib/aave/helpers';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { useAaveVersion } from '@/components/aave-dashboard/useAaveVersion';
+import { type AaveVersion } from '@/lib/aave/version';
 
-async function getLiquidationsData(page: number, pageSize: number, chain?: string) {
-    const chainParam = chain && chain !== 'all' ? `&chain=${chain}` : '';
-    const res = await fetch(`/api/aave/liquidations?page=${page}&pageSize=${pageSize}${chainParam}`);
+async function getLiquidationsData(version: AaveVersion, page: number, pageSize: number, chain?: string) {
+    const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+    });
+    if (chain && chain !== 'all') params.set('chain', chain);
+    if (version !== 'v3') params.set('version', version);
+    const res = await fetch(`/api/aave/liquidations?${params.toString()}`);
     if (!res.ok) throw new Error('Failed to fetch liquidations data');
     return res.json();
 }
@@ -21,10 +28,11 @@ export default function LiquidationsPage() {
     const [page, setPage] = useState(1);
     const pageSize = 20;
     const [chain, setChain] = useState<string>('all');
+    const { version } = useAaveVersion();
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['liquidationsData', page, pageSize, chain],
-        queryFn: () => getLiquidationsData(page, pageSize, chain),
+        queryKey: ['liquidationsData', version, page, pageSize, chain],
+        queryFn: () => getLiquidationsData(version, page, pageSize, chain),
     });
 
     if (isLoading) return <LoadingState />;
@@ -35,6 +43,19 @@ export default function LiquidationsPage() {
 
     return (
         <div className="space-y-4">
+            {data.notice && (
+                <div
+                    className="p-3 text-[11px] rounded"
+                    style={{
+                        background: 'var(--card)',
+                        border: '1px solid var(--accent-orange)',
+                        color: 'var(--text-muted)',
+                    }}
+                >
+                    <span style={{ color: 'var(--accent-orange)' }}>ℹ</span> {data.notice}
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-2">
                 <h2 className="text-sm font-bold uppercase tracking-[0.1em]" style={{ color: "var(--foreground)" }}>

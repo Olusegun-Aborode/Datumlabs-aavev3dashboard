@@ -9,8 +9,8 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aave V3 Risk Terminal — Datum Labs",
-  description: "Real-time risk analytics and monitoring for Aave V3 on Ethereum & Arbitrum",
+  title: "Aave Risk Terminal — Datum Labs",
+  description: "Real-time risk analytics and monitoring for Aave V3 & V4 across supported chains",
 };
 
 export default function RootLayout({

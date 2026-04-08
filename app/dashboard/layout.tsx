@@ -3,8 +3,12 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { Suspense } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import EmailGate from '@/components/aave-dashboard/EmailGate';
+import VersionSwitcher from '@/components/aave-dashboard/VersionSwitcher';
+import { useAaveVersion } from '@/components/aave-dashboard/useAaveVersion';
+import { parseVersion } from '@/lib/aave/version';
 
 const navItems = [
     { href: '/dashboard/overview', label: 'Overview' },
@@ -14,8 +18,21 @@ const navItems = [
     { href: '/dashboard/insights', label: 'Insights' },
 ];
 
+function VersionTitle() {
+    const { version } = useAaveVersion();
+    const label = version === 'all' ? 'V3 + V4' : version.toUpperCase();
+    return <>Aave {label} Risk Terminal</>;
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const version = parseVersion(searchParams.get('version'));
+
+    // Preserve the active ?version= across nav clicks so users don't fall back
+    // to the default (v3) every time they navigate between pages.
+    const withVersion = (href: string) =>
+        version === 'v3' ? href : `${href}?version=${version}`;
 
     return (
         <div className="min-h-screen font-mono flex flex-col" style={{ background: "var(--background)", color: "var(--foreground)" }}>
@@ -26,8 +43,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         <Image src="/branding/icon.png" alt="Datum Labs" width={22} height={22} className="rounded-sm" />
                         <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>|</span>
                         <span className="text-[10px] uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>
-                            Aave V3 Risk Terminal
+                            <Suspense fallback={<>Aave Risk Terminal</>}>
+                                <VersionTitle />
+                            </Suspense>
                         </span>
+                        <Suspense fallback={null}>
+                            <VersionSwitcher />
+                        </Suspense>
                     </div>
                     <div className="flex items-center gap-4">
                         {/* Nav Links */}
@@ -37,7 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                 return (
                                     <Link
                                         key={item.href}
-                                        href={item.href}
+                                        href={withVersion(item.href)}
                                         className="px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] rounded transition-colors"
                                         style={{
                                             color: isActive ? "var(--accent-orange)" : "var(--text-muted)",
@@ -65,7 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     return (
                         <Link
                             key={item.href}
-                            href={item.href}
+                            href={withVersion(item.href)}
                             className="px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] rounded whitespace-nowrap transition-colors"
                             style={{
                                 color: isActive ? "var(--accent-orange)" : "var(--text-muted)",

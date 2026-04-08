@@ -7,10 +7,19 @@ import { LoadingState } from '@/components/aave-dashboard/LoadingState';
 import { ErrorState } from '@/components/aave-dashboard/ErrorState';
 import TuiPanel, { TuiDivider } from '@/components/aave-dashboard/TuiPanel';
 import { formatCurrency, formatAddress, getHealthFactorStatus } from '@/lib/aave/helpers';
+import { useAaveVersion } from '@/components/aave-dashboard/useAaveVersion';
+import { type AaveVersion } from '@/lib/aave/version';
 
-async function getWalletsData(page: number, pageSize: number, hideEmpty: boolean, hideNoBorrow: boolean, chain?: string) {
-    const chainParam = chain && chain !== 'all' ? `&chain=${chain}` : '';
-    const res = await fetch(`/api/aave/wallets?page=${page}&pageSize=${pageSize}&hideEmpty=${hideEmpty}&hideNoBorrow=${hideNoBorrow}${chainParam}`);
+async function getWalletsData(version: AaveVersion, page: number, pageSize: number, hideEmpty: boolean, hideNoBorrow: boolean, chain?: string) {
+    const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+        hideEmpty: String(hideEmpty),
+        hideNoBorrow: String(hideNoBorrow),
+    });
+    if (chain && chain !== 'all') params.set('chain', chain);
+    if (version !== 'v3') params.set('version', version);
+    const res = await fetch(`/api/aave/wallets?${params.toString()}`);
     if (!res.ok) throw new Error('Failed to fetch wallets data');
     return res.json();
 }
@@ -23,10 +32,11 @@ export default function WalletsPage() {
     const [hideEmpty, setHideEmpty] = useState(true);
     const [hideNoBorrow, setHideNoBorrow] = useState(false);
     const [chain, setChain] = useState<string>('all');
+    const { version } = useAaveVersion();
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['walletsData', page, pageSize, hideEmpty, hideNoBorrow, chain],
-        queryFn: () => getWalletsData(page, pageSize, hideEmpty, hideNoBorrow, chain),
+        queryKey: ['walletsData', version, page, pageSize, hideEmpty, hideNoBorrow, chain],
+        queryFn: () => getWalletsData(version, page, pageSize, hideEmpty, hideNoBorrow, chain),
     });
 
     const filteredAccounts = useMemo(() => {
@@ -58,6 +68,19 @@ export default function WalletsPage() {
 
     return (
         <div className="space-y-4">
+            {data.notice && (
+                <div
+                    className="p-3 text-[11px] rounded"
+                    style={{
+                        background: 'var(--card)',
+                        border: '1px solid var(--accent-orange)',
+                        color: 'var(--text-muted)',
+                    }}
+                >
+                    <span style={{ color: 'var(--accent-orange)' }}>ℹ</span> {data.notice}
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-2">
                 <h2 className="text-sm font-bold uppercase tracking-[0.1em]" style={{ color: "var(--foreground)" }}>
