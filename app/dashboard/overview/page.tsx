@@ -23,11 +23,13 @@ async function getOverviewData(version: AaveVersion, chain?: string) {
 }
 
 function describeSource(version: AaveVersion): string {
-    if (version === 'all') {
-        return 'Source: DeFi Llama merged /protocol/aave-v3 + /protocol/aave-v4 (TVL and borrow series summed by date).';
+    if (version === 'v4') {
+        return 'Source: AaveKit v4 protocolHistory query (api.v4.aave.com). Returns daily supply (deposits) and borrow totals in USD, straight from the protocol with no external aggregator.';
     }
-    const slug = DEFILLAMA_SLUGS[version];
-    return `Source: DeFi Llama API (/protocol/${slug}). Supply = totalLiquidityUSD per chain. Borrow = totalBorrowBalanceUSD per chain. Aggregated daily across all Aave ${version.toUpperCase()} deployments.`;
+    if (version === 'all') {
+        return 'Source: v3 from DeFi Llama (/protocol/aave-v3) + v4 from AaveKit protocolHistory. Supply and borrow series are summed by date.';
+    }
+    return `Source: DeFi Llama API (/protocol/${DEFILLAMA_SLUGS.v3}). Supply = totalLiquidityUSD per chain. Borrow = totalBorrowBalanceUSD per chain. Aggregated daily across all Aave V3 deployments.`;
 }
 
 export default function OverviewPage() {

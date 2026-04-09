@@ -34,6 +34,20 @@ const METRICS_QUERY_V3 = `
   }
 `;
 
+// v4 historical TVL + borrow series, straight from AaveKit (no DeFi Llama).
+// protocolHistory doesn't accept a chain filter — it's already protocol-wide,
+// which for v4 means Ethereum only at launch. Currency fixed to USD; window
+// of LAST_YEAR gives enough data to cover the dashboard's 30/90/180 selectors.
+const V4_HISTORY_QUERY = `
+  query V4History($window: TimeWindow!) {
+    protocolHistory(request: { currency: USD, window: $window }) {
+      date
+      deposits { value }
+      borrows { value }
+    }
+  }
+`;
+
 // v4 equivalent: derive the same four metrics from reserves. Market size =
 // sum of supplied USD; available = supplied − borrowed; borrows = sum of
 // borrowed USD; reserves count = list length.
@@ -141,6 +155,54 @@ function sumMetrics(a: Metrics, b: Metrics): Metrics {
     };
 }
 
+type HistoryEntry = { date: string; tvl: number; borrows: number };
+
+/**
+ * Fetch v4 TVL + borrow history from AaveKit's protocolHistory query.
+ * Returns entries in the same shape as DeFi Llama's buildHistoricalData output
+ * so downstream merging and chart rendering doesn't care about the source.
+ */
+async function fetchV4History(): Promise<HistoryEntry[]> {
+    const res = await fetch(AAVEKIT_URLS.v4, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            query: V4_HISTORY_QUERY,
+            variables: { window: 'LAST_YEAR' },
+        }),
+    });
+    if (!res.ok) throw new Error(`AaveKit v4 protocolHistory error: ${res.status}`);
+    const { data, errors } = await res.json();
+    if (errors) throw new Error(errors[0]?.message || 'v4 protocolHistory error');
+
+    return (data?.protocolHistory || []).map((p: any) => ({
+        date: new Date(p.date).toISOString().split('T')[0],
+        tvl: parseFloat(p.deposits?.value || '0'),
+        borrows: parseFloat(p.borrows?.value || '0'),
+    }));
+}
+
+/**
+ * Sum two historical series by date. Used for the 'all' view where we need to
+ * combine v3 (DeFi Llama) and v4 (AaveKit protocolHistory) into a single chart.
+ */
+function mergeHistoriesByDate(a: HistoryEntry[], b: HistoryEntry[]): HistoryEntry[] {
+    const map = new Map<string, { tvl: number; borrows: number }>();
+    for (const e of a) map.set(e.date, { tvl: e.tvl, borrows: e.borrows });
+    for (const e of b) {
+        const existing = map.get(e.date);
+        if (existing) {
+            existing.tvl += e.tvl;
+            existing.borrows += e.borrows;
+        } else {
+            map.set(e.date, { tvl: e.tvl, borrows: e.borrows });
+        }
+    }
+    return Array.from(map.entries())
+        .sort(([x], [y]) => x.localeCompare(y))
+        .map(([date, v]) => ({ date, ...v }));
+}
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const chain = searchParams.get('chain') || 'all';
@@ -158,18 +220,26 @@ export async function GET(request: Request) {
     try {
         const targets = versionsToQuery(version);
 
-        // Metrics: per-version parallel fetch, summed if multiple versions requested.
-        // Protocol history: DeFi Llama fetcher handles 'all' internally by merging slugs.
+        // Metrics: per-version parallel fetch, summed across requested versions.
+        // Historical data:
+        //   - v3 uses DeFi Llama (/protocol/aave-v3) since AaveKit v3 has no
+        //     equivalent time-series endpoint.
+        //   - v4 uses AaveKit's protocolHistory directly — first-party data and
+        //     actually covers v4's full history, unlike DeFi Llama which only
+        //     started indexing aave-v4 recently.
+        //   - all: fetch both in parallel, merge by date.
         // Revenue: DeFi Llama fees endpoint aggregates across all Aave versions.
-        // For v3 or all, that aggregate is a fair representation (v3 has dominated
-        // historically). For v4-only we can't split it out, so we return zeros and
-        // surface a notice so the UI doesn't misleadingly attribute $1.79B of
-        // historical v3 revenue to a protocol that launched weeks ago.
+        //   For v3/all that aggregate is fair. For v4-only we return zeros and
+        //   flag revenueAvailable=false so the UI shows a notice.
         const metricsPromises = targets.map(v => fetchAaveKitMetrics(v, chain));
         const shouldFetchRevenue = version !== 'v4';
-        const [metricsResults, protocolData, revenueData] = await Promise.all([
+        const wantsV3History = version === 'v3' || version === 'all';
+        const wantsV4History = version === 'v4' || version === 'all';
+
+        const [metricsResults, v3ProtocolData, v4History, revenueData] = await Promise.all([
             Promise.allSettled(metricsPromises),
-            fetchProtocolData(version),
+            wantsV3History ? fetchProtocolData('v3') : Promise.resolve(null),
+            wantsV4History ? fetchV4History().catch(() => []) : Promise.resolve([]),
             shouldFetchRevenue
                 ? fetchRevenueData()
                 : Promise.resolve({ supplyRevenueUSD: 0, protocolRevenueUSD: 0, revenueHistory: [] }),
@@ -182,7 +252,16 @@ export async function GET(request: Request) {
             else warnings.push(`${targets[i]}: ${r.reason?.message || 'fetch failed'}`);
         });
 
-        const { historicalData } = buildHistoricalData(protocolData, chain);
+        let historicalData: HistoryEntry[] = [];
+        if (version === 'v4') {
+            historicalData = v4History;
+        } else if (version === 'v3') {
+            historicalData = buildHistoricalData(v3ProtocolData, chain).historicalData;
+        } else {
+            // all: merge v3 (DeFi Llama) with v4 (AaveKit) by date
+            const v3Hist = buildHistoricalData(v3ProtocolData, chain).historicalData;
+            historicalData = mergeHistoriesByDate(v3Hist, v4History);
+        }
 
         const responseData = {
             totalMarketSize: metrics.totalMarketSize,
