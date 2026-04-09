@@ -1,7 +1,7 @@
 // app/dashboard/markets/page.tsx
 'use client';
 
-import { useState, useMemo } from 'react';
+import { Suspense, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LoadingState } from '@/components/aave-dashboard/LoadingState';
 import { ErrorState } from '@/components/aave-dashboard/ErrorState';
@@ -25,6 +25,14 @@ async function getMarketsData(version: AaveVersion, chain?: string) {
 }
 
 export default function MarketsPage() {
+    return (
+        <Suspense fallback={<LoadingState />}>
+            <MarketsPageInner />
+        </Suspense>
+    );
+}
+
+function MarketsPageInner() {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortBy, setSortBy] = useState<'tvl' | 'supplyApy' | 'borrowApy' | 'utilization'>('tvl');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');

@@ -1,7 +1,7 @@
 // app/dashboard/overview/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LoadingState } from '@/components/aave-dashboard/LoadingState';
 import { ErrorState } from '@/components/aave-dashboard/ErrorState';
@@ -31,6 +31,15 @@ function describeSource(version: AaveVersion): string {
 }
 
 export default function OverviewPage() {
+    // Suspense required because useAaveVersion() reads useSearchParams().
+    return (
+        <Suspense fallback={<LoadingState />}>
+            <OverviewPageInner />
+        </Suspense>
+    );
+}
+
+function OverviewPageInner() {
     const [timeRange, setTimeRange] = useState(90);
     const [revenueTimeRange, setRevenueTimeRange] = useState(90);
     const [chain, setChain] = useState<string>('all');

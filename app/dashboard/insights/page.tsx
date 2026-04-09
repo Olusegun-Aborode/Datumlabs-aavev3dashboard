@@ -1,6 +1,7 @@
 // app/dashboard/insights/page.tsx
 'use client';
 
+import { Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LoadingState } from '@/components/aave-dashboard/LoadingState';
 import { ErrorState } from '@/components/aave-dashboard/ErrorState';
@@ -33,6 +34,16 @@ async function getWalletsData(version: AaveVersion) {
 }
 
 export default function InsightsPage() {
+    // Wrap in Suspense because useAaveVersion() reads useSearchParams(),
+    // which Next.js 16 requires be inside a Suspense boundary during prerender.
+    return (
+        <Suspense fallback={<LoadingState />}>
+            <InsightsPageInner />
+        </Suspense>
+    );
+}
+
+function InsightsPageInner() {
     const { version } = useAaveVersion();
 
     const { data: overviewData, isLoading: overviewLoading } = useQuery({

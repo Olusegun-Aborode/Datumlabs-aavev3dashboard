@@ -24,15 +24,94 @@ function VersionTitle() {
     return <>Aave {label} Risk Terminal</>;
 }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-    const pathname = usePathname();
+// Nav links read ?version= to preserve the current Aave protocol version across
+// navigation. Extracted into its own component so useSearchParams is scoped
+// inside a Suspense boundary and doesn't force the entire layout to bail out
+// of prerender.
+function NavLinks({ pathname, mobile = false }: { pathname: string; mobile?: boolean }) {
     const searchParams = useSearchParams();
     const version = parseVersion(searchParams.get('version'));
-
-    // Preserve the active ?version= across nav clicks so users don't fall back
-    // to the default (v3) every time they navigate between pages.
     const withVersion = (href: string) =>
         version === 'v3' ? href : `${href}?version=${version}`;
+
+    if (mobile) {
+        return (
+            <>
+                {navItems.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                        <Link
+                            key={item.href}
+                            href={withVersion(item.href)}
+                            className="px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] rounded whitespace-nowrap transition-colors"
+                            style={{
+                                color: isActive ? "var(--accent-orange)" : "var(--text-muted)",
+                                background: isActive ? "rgba(255, 107, 53, 0.08)" : "transparent",
+                            }}
+                        >
+                            {item.label}
+                        </Link>
+                    );
+                })}
+            </>
+        );
+    }
+
+    return (
+        <>
+            {navItems.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                    <Link
+                        key={item.href}
+                        href={withVersion(item.href)}
+                        className="px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] rounded transition-colors"
+                        style={{
+                            color: isActive ? "var(--accent-orange)" : "var(--text-muted)",
+                            background: isActive ? "rgba(255, 107, 53, 0.08)" : "transparent",
+                            borderBottom: isActive ? "1px solid var(--accent-orange)" : "1px solid transparent",
+                        }}
+                    >
+                        {item.label}
+                    </Link>
+                );
+            })}
+        </>
+    );
+}
+
+// Fallback nav (renders during prerender before Suspense resolves). Links go
+// to the default v3 URLs so the initial HTML is valid and navigable.
+function NavLinksFallback({ pathname, mobile = false }: { pathname: string; mobile?: boolean }) {
+    return (
+        <>
+            {navItems.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                    <Link
+                        key={item.href}
+                        href={item.href}
+                        className={
+                            mobile
+                                ? "px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] rounded whitespace-nowrap transition-colors"
+                                : "px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] rounded transition-colors"
+                        }
+                        style={{
+                            color: isActive ? "var(--accent-orange)" : "var(--text-muted)",
+                            background: isActive ? "rgba(255, 107, 53, 0.08)" : "transparent",
+                            ...(mobile ? {} : { borderBottom: isActive ? "1px solid var(--accent-orange)" : "1px solid transparent" }),
+                        }}
+                    >
+                        {item.label}
+                    </Link>
+                );
+            })}
+        </>
+    );
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname();
 
     return (
         <div className="min-h-screen font-mono flex flex-col" style={{ background: "var(--background)", color: "var(--foreground)" }}>
@@ -54,23 +133,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <div className="flex items-center gap-4">
                         {/* Nav Links */}
                         <div className="hidden md:flex items-center gap-1">
-                            {navItems.map((item) => {
-                                const isActive = pathname === item.href;
-                                return (
-                                    <Link
-                                        key={item.href}
-                                        href={withVersion(item.href)}
-                                        className="px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] rounded transition-colors"
-                                        style={{
-                                            color: isActive ? "var(--accent-orange)" : "var(--text-muted)",
-                                            background: isActive ? "rgba(255, 107, 53, 0.08)" : "transparent",
-                                            borderBottom: isActive ? "1px solid var(--accent-orange)" : "1px solid transparent",
-                                        }}
-                                    >
-                                        {item.label}
-                                    </Link>
-                                );
-                            })}
+                            <Suspense fallback={<NavLinksFallback pathname={pathname} />}>
+                                <NavLinks pathname={pathname} />
+                            </Suspense>
                         </div>
                         <span className="inline-flex items-center gap-1.5 text-[10px]" style={{ color: "var(--text-muted)" }}>
                             <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--accent-orange)" }} />
@@ -82,22 +147,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {/* Mobile Nav */}
             <div className="md:hidden flex items-center gap-1 px-4 py-2 overflow-x-auto" style={{ borderBottom: "1px solid var(--border)", background: "var(--panel-header)" }}>
-                {navItems.map((item) => {
-                    const isActive = pathname === item.href;
-                    return (
-                        <Link
-                            key={item.href}
-                            href={withVersion(item.href)}
-                            className="px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] rounded whitespace-nowrap transition-colors"
-                            style={{
-                                color: isActive ? "var(--accent-orange)" : "var(--text-muted)",
-                                background: isActive ? "rgba(255, 107, 53, 0.08)" : "transparent",
-                            }}
-                        >
-                            {item.label}
-                        </Link>
-                    );
-                })}
+                <Suspense fallback={<NavLinksFallback pathname={pathname} mobile />}>
+                    <NavLinks pathname={pathname} mobile />
+                </Suspense>
             </div>
 
             {/* Main Content */}

@@ -41,7 +41,7 @@ interface DefiLlamaBorrowEntry {
  * Response can be very large (10MB+), so we extract only what we need.
  * Pass 'all' to fetch and merge both v3 and v4.
  */
-export async function fetchProtocolData(version: AaveVersion = 'v3') {
+export async function fetchProtocolData(version: AaveVersion = 'v3'): Promise<any> {
   if (version === 'all') {
     const [v3, v4] = await Promise.all([
       fetchProtocolData('v3'),

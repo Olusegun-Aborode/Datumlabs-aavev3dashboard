@@ -1,7 +1,7 @@
 // app/dashboard/liquidations/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LoadingState } from '@/components/aave-dashboard/LoadingState';
 import { ErrorState } from '@/components/aave-dashboard/ErrorState';
@@ -25,6 +25,14 @@ async function getLiquidationsData(version: AaveVersion, page: number, pageSize:
 }
 
 export default function LiquidationsPage() {
+    return (
+        <Suspense fallback={<LoadingState />}>
+            <LiquidationsPageInner />
+        </Suspense>
+    );
+}
+
+function LiquidationsPageInner() {
     const [page, setPage] = useState(1);
     const pageSize = 20;
     const [chain, setChain] = useState<string>('all');

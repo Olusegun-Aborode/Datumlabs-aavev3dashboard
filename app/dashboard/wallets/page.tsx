@@ -1,7 +1,7 @@
 // app/dashboard/wallets/page.tsx
 'use client';
 
-import { useState, useMemo } from 'react';
+import { Suspense, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LoadingState } from '@/components/aave-dashboard/LoadingState';
 import { ErrorState } from '@/components/aave-dashboard/ErrorState';
@@ -25,6 +25,14 @@ async function getWalletsData(version: AaveVersion, page: number, pageSize: numb
 }
 
 export default function WalletsPage() {
+    return (
+        <Suspense fallback={<LoadingState />}>
+            <WalletsPageInner />
+        </Suspense>
+    );
+}
+
+function WalletsPageInner() {
     const [page, setPage] = useState(1);
     const pageSize = 20;
     const [searchTerm, setSearchTerm] = useState('');
