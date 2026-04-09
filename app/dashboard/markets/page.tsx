@@ -85,9 +85,12 @@ function MarketsPageInner() {
     if (!data || !data.markets) return <ErrorState message="No market data available." />;
 
     const totalSupply = data.markets.reduce((sum: number, m: any) => sum + m.totalDepositBalanceUSD, 0);
-    const avgUtilization = data.markets.length > 0
-        ? data.markets.reduce((sum: number, m: any) => sum + m.utilization, 0) / data.markets.length
-        : 0;
+    // TVL-weighted utilization (Σborrowed / Σsupplied) rather than an arithmetic
+    // mean of per-reserve utilizations. A simple mean over-weights dust reserves
+    // that can show absurd ratios when supply is near zero (e.g. a $0.0002
+    // supplied / $1.17 borrowed state → 582,700% that distorts the average).
+    const totalBorrow = data.markets.reduce((sum: number, m: any) => sum + m.totalBorrowBalanceUSD, 0);
+    const avgUtilization = totalSupply > 0 ? (totalBorrow / totalSupply) * 100 : 0;
     const highestApy = data.markets.length > 0
         ? Math.max(...data.markets.map((m: any) => m.rates.find((r: any) => r.side === 'LENDER')?.rate || 0))
         : 0;
