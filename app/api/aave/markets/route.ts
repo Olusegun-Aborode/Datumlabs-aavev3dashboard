@@ -38,10 +38,11 @@ const MARKETS_QUERY_V3 = `
   query GetMarkets($chainIds: [ChainId!]!) {
     markets(request: { chainIds: $chainIds }) {
       name
+      address
       chain { name chainId }
       totalMarketSize
       reserves {
-        underlyingToken { symbol name decimals }
+        underlyingToken { address symbol name decimals }
         size { usdPerToken amount { value } usd }
         supplyInfo {
           apy { value }
@@ -112,11 +113,16 @@ function transformV3Markets(marketsData: any[]) {
                 id: `v3-${chainKey}-${market.name}-${i}`,
                 name: reserve.underlyingToken.name,
                 chain: chainKey,
+                chainId: market.chain.chainId,
                 market: market.name,
+                marketAddress: market.address,
+                tokenAddress: reserve.underlyingToken.address,
                 version: 'v3',
                 inputToken: {
+                    address: reserve.underlyingToken.address,
                     symbol: reserve.underlyingToken.symbol,
                     name: reserve.underlyingToken.name,
+                    decimals: reserve.underlyingToken.decimals,
                 },
                 totalValueLockedUSD: tvl,
                 totalBorrowBalanceUSD: borrows,

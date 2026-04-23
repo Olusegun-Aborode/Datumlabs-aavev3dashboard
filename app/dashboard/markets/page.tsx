@@ -2,6 +2,7 @@
 'use client';
 
 import { Suspense, useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { LoadingState } from '@/components/aave-dashboard/LoadingState';
 import { ErrorState } from '@/components/aave-dashboard/ErrorState';
@@ -33,6 +34,7 @@ export default function MarketsPage() {
 }
 
 function MarketsPageInner() {
+    const router = useRouter();
     const [searchTerm, setSearchTerm] = useState('');
     const [sortBy, setSortBy] = useState<'tvl' | 'supplyApy' | 'borrowApy' | 'utilization'>('tvl');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -258,8 +260,22 @@ function MarketsPageInner() {
                                 const supplyRate = market.rates.find((r: any) => r.side === 'LENDER');
                                 const borrowRate = market.rates.find((r: any) => r.side === 'BORROWER');
 
+                                // v3 markets carry the addresses needed to deep-link.
+                                // v4 detail pages aren't built yet — leave those rows non-interactive.
+                                const canOpen = market.version === 'v3' && market.marketAddress && market.tokenAddress;
+                                const handleOpen = canOpen
+                                    ? () => router.push(
+                                        `/dashboard/markets/${market.chain}/${market.tokenAddress}?market=${market.marketAddress}`,
+                                    )
+                                    : undefined;
+
                                 return (
-                                    <tr key={market.id}>
+                                    <tr
+                                        key={market.id}
+                                        onClick={handleOpen}
+                                        style={canOpen ? { cursor: 'pointer' } : undefined}
+                                        title={canOpen ? `View ${market.inputToken.symbol} on ${market.chain}` : undefined}
+                                    >
                                         <td>
                                             <span className="font-semibold">{market.inputToken.symbol}</span>
                                             {market.chain && (
