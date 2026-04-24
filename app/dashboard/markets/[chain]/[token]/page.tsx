@@ -181,7 +181,10 @@ function MarketDetailInner({ params }: PageProps) {
                 </div>
             </div>
 
-            {/* APY history chart */}
+            {/* APY history + utilization charts side by side. They share the
+                same window state, so toggling the time range updates both at once.
+                On screens narrower than `lg` they stack vertically. */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <ChartWrapper
                 title="APY History"
                 badge={`Last ${window === '7' ? 'week' : window === '30' ? 'month' : window === '180' ? '6 months' : 'year'}`}
@@ -193,6 +196,7 @@ function MarketDetailInner({ params }: PageProps) {
                     { label: 'Supply APY', color: 'var(--accent-green)' },
                     { label: 'Borrow APY', color: 'var(--accent-blue)' },
                 ]}
+                height="h-64"
             >
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={data.apyHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -253,7 +257,7 @@ function MarketDetailInner({ params }: PageProps) {
                     { label: 'Utilization', color: 'var(--accent-orange)' },
                     { label: `Optimal (${optimalUsage.toFixed(0)}%)`, color: 'var(--accent-yellow)' },
                 ]}
-                height="h-56"
+                height="h-64"
             >
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart
@@ -331,6 +335,7 @@ function MarketDetailInner({ params }: PageProps) {
                     </AreaChart>
                 </ResponsiveContainer>
             </ChartWrapper>
+            </div>
 
             <TuiDivider label="Risk Parameters" />
 
