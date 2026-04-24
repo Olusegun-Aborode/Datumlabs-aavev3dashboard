@@ -14,7 +14,7 @@ import { ErrorState } from '@/components/aave-dashboard/ErrorState';
 import { TuiDivider } from '@/components/aave-dashboard/TuiPanel';
 import ChartWrapper from '@/components/aave-dashboard/ChartWrapper';
 import { formatCurrency, formatAddress, formatPercentage } from '@/lib/aave/helpers';
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from 'recharts';
+import { Area, AreaChart, Line, LineChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, ReferenceDot } from 'recharts';
 
 const CHAIN_LABEL: Record<string, { name: string; chainId: number; explorer: string }> = {
     ethereum:  { name: 'Ethereum',  chainId: 1,      explorer: 'https://etherscan.io' },
@@ -359,18 +359,33 @@ function MarketDetailInner({ params }: PageProps) {
                 <ParamCard label="Optimal Usage" value={formatPercentage(optimalUsage)} hint="Kink in the rate curve" />
             </div>
 
+            <InterestRateCurveChart
+                baseRate={baseRate}
+                slope1={slope1}
+                slope2={slope2}
+                optimalUsage={optimalUsage}
+                reserveFactor={reserveFactor}
+                currentUtilization={utilization}
+            />
+
             <TuiDivider label="Caps" />
 
             <div className="grid grid-cols-2 gap-3">
-                <ParamCard
+                <CapUsageCard
                     label="Supply Cap"
-                    value={supplyCap > 0 ? `${supplyCap.toLocaleString()} ${symbol}` : 'No cap'}
-                    hint={reserve.supplyInfo?.supplyCapReached ? 'Cap reached' : undefined}
+                    current={totalSuppliedTokens}
+                    cap={supplyCap}
+                    symbol={symbol}
+                    capReached={reserve.supplyInfo?.supplyCapReached}
+                    accent="var(--accent-green)"
                 />
-                <ParamCard
+                <CapUsageCard
                     label="Borrow Cap"
-                    value={borrowCap > 0 ? `${borrowCap.toLocaleString()} ${symbol}` : 'No cap'}
-                    hint={reserve.borrowInfo?.borrowCapReached ? 'Cap reached' : undefined}
+                    current={totalBorrowedTokens}
+                    cap={borrowCap}
+                    symbol={symbol}
+                    capReached={reserve.borrowInfo?.borrowCapReached}
+                    accent="var(--accent-blue)"
                 />
             </div>
 
@@ -399,6 +414,231 @@ function ParamCard({ label, value, hint }: { label: string; value: string; hint?
                 <p className="counter-label">{label}</p>
                 <p className="text-base font-bold mt-1" style={{ color: 'var(--foreground)' }}>{value}</p>
                 {hint && <p className="text-[9px] mt-1" style={{ color: 'var(--text-muted)' }}>{hint}</p>}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Plots Aave's kinked interest rate curve (borrow + supply) across the full
+ * 0 → 100% utilization range. All inputs are in percent (0-100), not [0, 1].
+ *
+ * Borrow rate formula:
+ *   U ≤ U_opt : base + (U / U_opt) × slope1
+ *   U > U_opt : base + slope1 + ((U − U_opt) / (1 − U_opt)) × slope2
+ *
+ * Supply rate:
+ *   supplyAPY = borrowAPY × utilization × (1 − reserveFactor)
+ *
+ * We sample every 1% of U plus an explicit point at U_opt (the kink) and the
+ * current utilization so those markers sit exactly on the curves.
+ */
+function InterestRateCurveChart({
+    baseRate, slope1, slope2, optimalUsage, reserveFactor, currentUtilization,
+}: {
+    baseRate: number;
+    slope1: number;
+    slope2: number;
+    optimalUsage: number;
+    reserveFactor: number;
+    currentUtilization: number;
+}) {
+    const reserveFactorDec = reserveFactor / 100;
+
+    function borrowAt(u: number): number {
+        if (optimalUsage <= 0) return baseRate;
+        if (u <= optimalUsage) {
+            return baseRate + (u / optimalUsage) * slope1;
+        }
+        const over = (u - optimalUsage) / Math.max(1e-9, 100 - optimalUsage);
+        return baseRate + slope1 + over * slope2;
+    }
+
+    function supplyAt(u: number): number {
+        return borrowAt(u) * (u / 100) * (1 - reserveFactorDec);
+    }
+
+    const samples = new Set<number>();
+    for (let u = 0; u <= 100; u += 1) samples.add(u);
+    samples.add(Number(optimalUsage.toFixed(2)));
+    samples.add(Number(currentUtilization.toFixed(2)));
+    const curve = Array.from(samples)
+        .filter(u => u >= 0 && u <= 100)
+        .sort((a, b) => a - b)
+        .map(u => ({
+            utilization: u,
+            borrow: borrowAt(u),
+            supply: supplyAt(u),
+        }));
+
+    const currentBorrow = borrowAt(currentUtilization);
+    const currentSupply = supplyAt(currentUtilization);
+    const kinkBorrow = borrowAt(optimalUsage);
+
+    return (
+        <ChartWrapper
+            title="Rate Curve"
+            badge="Current model"
+            dataSource="Synthetic: Aave's kinked rate model plotted from the reserve's current parameters (base, slope1, slope2, optimal usage, reserve factor). The kink marker is at optimal usage; the filled dot is the current utilization."
+            legend={[
+                { label: 'Borrow APY', color: 'var(--accent-blue)' },
+                { label: 'Supply APY', color: 'var(--accent-green)' },
+                { label: 'Kink (optimal)', color: 'var(--accent-yellow)' },
+                { label: 'Current', color: 'var(--accent-orange)' },
+            ]}
+            height="h-64"
+        >
+            <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={curve} margin={{ top: 10, right: 30, left: 0, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                    <XAxis
+                        dataKey="utilization"
+                        type="number"
+                        domain={[0, 100]}
+                        ticks={[0, 25, 50, 75, 100]}
+                        tickFormatter={(v) => `${v}%`}
+                        tick={{ fontSize: 10, fill: '#6B7280' }}
+                        axisLine={{ stroke: 'rgba(0,0,0,0.1)' }}
+                        tickLine={false}
+                        label={{ value: 'Utilization', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#6B7280' }}
+                    />
+                    <YAxis
+                        tickFormatter={(v) => `${v.toFixed(1)}%`}
+                        tick={{ fontSize: 10, fill: '#6B7280' }}
+                        axisLine={false}
+                        tickLine={false}
+                    />
+                    <Tooltip
+                        contentStyle={{
+                            background: 'var(--card)',
+                            border: '1px solid var(--border-bright)',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            color: 'var(--foreground)',
+                        }}
+                        formatter={(value, name) => [
+                            `${(Number(value) || 0).toFixed(3)}%`,
+                            name === 'borrow' ? 'Borrow APY' : 'Supply APY',
+                        ]}
+                        labelFormatter={(label) => `Utilization ${Number(label).toFixed(1)}%`}
+                    />
+                    <ReferenceLine
+                        x={optimalUsage}
+                        stroke="var(--accent-yellow)"
+                        strokeDasharray="4 4"
+                        strokeWidth={1.5}
+                        label={{
+                            value: `Kink ${optimalUsage.toFixed(0)}%`,
+                            position: 'top',
+                            fill: 'var(--accent-yellow)',
+                            fontSize: 9,
+                        }}
+                    />
+                    <Line
+                        type="monotone"
+                        dataKey="borrow"
+                        stroke="var(--accent-blue)"
+                        strokeWidth={2}
+                        dot={false}
+                        name="borrow"
+                        isAnimationActive={false}
+                    />
+                    <Line
+                        type="monotone"
+                        dataKey="supply"
+                        stroke="var(--accent-green)"
+                        strokeWidth={2}
+                        dot={false}
+                        name="supply"
+                        isAnimationActive={false}
+                    />
+                    {/* Kink marker — the point on the borrow curve at optimal usage */}
+                    <ReferenceDot
+                        x={optimalUsage}
+                        y={kinkBorrow}
+                        r={4}
+                        fill="var(--accent-yellow)"
+                        stroke="var(--background)"
+                        strokeWidth={2}
+                    />
+                    {/* Current position — filled dot on both curves */}
+                    <ReferenceDot
+                        x={currentUtilization}
+                        y={currentBorrow}
+                        r={5}
+                        fill="var(--accent-orange)"
+                        stroke="var(--background)"
+                        strokeWidth={2}
+                    />
+                    <ReferenceDot
+                        x={currentUtilization}
+                        y={currentSupply}
+                        r={5}
+                        fill="var(--accent-orange)"
+                        stroke="var(--background)"
+                        strokeWidth={2}
+                    />
+                </LineChart>
+            </ResponsiveContainer>
+        </ChartWrapper>
+    );
+}
+
+/**
+ * Visual progress bar for a reserve's cap. AaveKit doesn't expose historical
+ * supply/borrow totals, so we show current fill + remaining headroom rather
+ * than a time series. Color shifts to amber past 75% and red past 95%.
+ */
+function CapUsageCard({
+    label, current, cap, symbol, capReached, accent,
+}: {
+    label: string;
+    current: number;
+    cap: number;
+    symbol: string;
+    capReached?: boolean;
+    accent: string;
+}) {
+    const hasCap = cap > 0;
+    const pct = hasCap ? Math.min(100, (current / cap) * 100) : 0;
+    const remaining = hasCap ? Math.max(0, cap - current) : 0;
+    const barColor = pct >= 95 ? 'var(--accent-red)' : pct >= 75 ? 'var(--accent-yellow)' : accent;
+
+    return (
+        <div className="tui-panel">
+            <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                    <p className="counter-label">{label}</p>
+                    {capReached && (
+                        <span className="text-[9px] px-2 py-0.5 rounded" style={{ background: 'var(--accent-red)', color: 'white' }}>
+                            CAP REACHED
+                        </span>
+                    )}
+                </div>
+                {hasCap ? (
+                    <>
+                        <p className="text-base font-bold" style={{ color: 'var(--foreground)' }}>
+                            {current.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            <span className="text-[11px] font-normal" style={{ color: 'var(--text-muted)' }}>
+                                {' / '}
+                                {cap.toLocaleString()} {symbol}
+                            </span>
+                        </p>
+                        {/* Filled bar — width = % of cap used */}
+                        <div className="mt-2 h-2 rounded overflow-hidden" style={{ background: 'rgba(0,0,0,0.06)' }}>
+                            <div
+                                className="h-full transition-all"
+                                style={{ width: `${pct}%`, background: barColor }}
+                            />
+                        </div>
+                        <div className="flex items-center justify-between mt-1.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                            <span>{pct.toFixed(2)}% used</span>
+                            <span>{remaining.toLocaleString(undefined, { maximumFractionDigits: 0 })} {symbol} headroom</span>
+                        </div>
+                    </>
+                ) : (
+                    <p className="text-base font-bold" style={{ color: 'var(--foreground)' }}>No cap</p>
+                )}
             </div>
         </div>
     );
