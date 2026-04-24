@@ -389,6 +389,15 @@ function MarketDetailInner({ params }: PageProps) {
                 />
             </div>
 
+            <CapHistoryChart
+                chainId={chainInfo.chainId}
+                market={market}
+                token={token}
+                symbol={symbol}
+                supplyCap={supplyCap}
+                borrowCap={borrowCap}
+            />
+
             <TuiDivider label="Token Info" />
 
             <div className="tui-panel">
@@ -585,9 +594,253 @@ function InterestRateCurveChart({
 }
 
 /**
- * Visual progress bar for a reserve's cap. AaveKit doesn't expose historical
- * supply/borrow totals, so we show current fill + remaining headroom rather
- * than a time series. Color shifts to amber past 75% and red past 95%.
+ * Historical supplied + borrowed area chart with the current cap drawn as a
+ * dashed reference line on each axis. Data comes from Aave's official
+ * subgraph (`reserveParamsHistoryItems`), downsampled to one point per day
+ * server-side.
+ *
+ * For chains we don't have a subgraph mapping for (Plasma, Mantle, etc.) the
+ * chart renders a "not available" panel.
+ */
+function CapHistoryChart({
+    chainId, market, token, symbol, supplyCap, borrowCap,
+}: {
+    chainId: number;
+    market: string;
+    token: string;
+    symbol: string;
+    supplyCap: number;
+    borrowCap: number;
+}) {
+    const [window, setWindow] = useState('30');
+
+    const { data, isLoading, error } = useQuery({
+        queryKey: ['reserveHistory', chainId, market, token, window],
+        queryFn: async () => {
+            const params = new URLSearchParams({
+                chainId: chainId.toString(),
+                market,
+                token,
+                window,
+            });
+            const res = await fetch(`/api/aave/markets/reserve/history?${params}`);
+            if (!res.ok) throw new Error('Failed to fetch history');
+            return res.json();
+        },
+    });
+
+    const history = data?.history || [];
+    const unsupported = data?.unsupported;
+    const truncated = data?.truncated;
+
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <ChartWrapper
+                title="Supply History"
+                badge={`Last ${window === '7' ? 'week' : window === '30' ? 'month' : window === '90' ? '3 months' : window === '180' ? '6 months' : 'year'}`}
+                timeRanges={[7, 30, 90, 180, 365]}
+                selectedRange={parseInt(window, 10)}
+                onRangeChange={(r) => setWindow(r.toString())}
+                dataSource="Source: Aave official subgraph (reserveParamsHistoryItems). Daily snapshot of totalATokenSupply. Dashed line = current supply cap."
+                legend={[
+                    { label: 'Supplied', color: 'var(--accent-green)' },
+                    ...(supplyCap > 0 ? [{ label: 'Cap', color: 'var(--accent-red)' }] : []),
+                ]}
+                height="h-56"
+            >
+                {unsupported ? (
+                    <UnavailableMessage reason="Aave official subgraph not configured for this chain." />
+                ) : isLoading ? (
+                    <ChartSpinner />
+                ) : error ? (
+                    <UnavailableMessage reason="Failed to load history." />
+                ) : history.length === 0 ? (
+                    <UnavailableMessage reason={`No history available in the last ${window} days.`} />
+                ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={history} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="capSupplyGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="var(--accent-green)" stopOpacity={0.18} />
+                                    <stop offset="95%" stopColor="var(--accent-green)" stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                            <XAxis
+                                dataKey="date"
+                                tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                tick={{ fontSize: 10, fill: '#6B7280' }}
+                                axisLine={{ stroke: 'rgba(0,0,0,0.1)' }}
+                                tickLine={false}
+                                minTickGap={40}
+                            />
+                            <YAxis
+                                tickFormatter={(v) => formatTokenAxis(v)}
+                                tick={{ fontSize: 10, fill: '#6B7280' }}
+                                axisLine={false}
+                                tickLine={false}
+                            />
+                            <Tooltip
+                                contentStyle={{
+                                    background: 'var(--card)',
+                                    border: '1px solid var(--border-bright)',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    color: 'var(--foreground)',
+                                }}
+                                formatter={(value) => [`${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${symbol}`, '']}
+                                labelFormatter={(label) => new Date(label).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            />
+                            {supplyCap > 0 && (
+                                <ReferenceLine
+                                    y={supplyCap}
+                                    stroke="var(--accent-red)"
+                                    strokeDasharray="4 4"
+                                    strokeWidth={1.5}
+                                    label={{
+                                        value: `Cap ${formatTokenAxis(supplyCap)}`,
+                                        position: 'right',
+                                        fill: 'var(--accent-red)',
+                                        fontSize: 9,
+                                    }}
+                                />
+                            )}
+                            <Area
+                                type="monotone"
+                                dataKey="supplied"
+                                stroke="var(--accent-green)"
+                                strokeWidth={1.5}
+                                fillOpacity={1}
+                                fill="url(#capSupplyGrad)"
+                                name="Supplied"
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                )}
+            </ChartWrapper>
+
+            <ChartWrapper
+                title="Borrow History"
+                badge={`Last ${window === '7' ? 'week' : window === '30' ? 'month' : window === '90' ? '3 months' : window === '180' ? '6 months' : 'year'}`}
+                timeRanges={[7, 30, 90, 180, 365]}
+                selectedRange={parseInt(window, 10)}
+                onRangeChange={(r) => setWindow(r.toString())}
+                dataSource="Source: Aave official subgraph (reserveParamsHistoryItems). Daily snapshot of totalCurrentVariableDebt + totalPrincipalStableDebt. Dashed line = current borrow cap."
+                legend={[
+                    { label: 'Borrowed', color: 'var(--accent-blue)' },
+                    ...(borrowCap > 0 ? [{ label: 'Cap', color: 'var(--accent-red)' }] : []),
+                ]}
+                height="h-56"
+            >
+                {unsupported ? (
+                    <UnavailableMessage reason="Aave official subgraph not configured for this chain." />
+                ) : isLoading ? (
+                    <ChartSpinner />
+                ) : error ? (
+                    <UnavailableMessage reason="Failed to load history." />
+                ) : history.length === 0 ? (
+                    <UnavailableMessage reason={`No history available in the last ${window} days.`} />
+                ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={history} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="capBorrowGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="var(--accent-blue)" stopOpacity={0.18} />
+                                    <stop offset="95%" stopColor="var(--accent-blue)" stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                            <XAxis
+                                dataKey="date"
+                                tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                tick={{ fontSize: 10, fill: '#6B7280' }}
+                                axisLine={{ stroke: 'rgba(0,0,0,0.1)' }}
+                                tickLine={false}
+                                minTickGap={40}
+                            />
+                            <YAxis
+                                tickFormatter={(v) => formatTokenAxis(v)}
+                                tick={{ fontSize: 10, fill: '#6B7280' }}
+                                axisLine={false}
+                                tickLine={false}
+                            />
+                            <Tooltip
+                                contentStyle={{
+                                    background: 'var(--card)',
+                                    border: '1px solid var(--border-bright)',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    color: 'var(--foreground)',
+                                }}
+                                formatter={(value) => [`${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${symbol}`, '']}
+                                labelFormatter={(label) => new Date(label).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            />
+                            {borrowCap > 0 && (
+                                <ReferenceLine
+                                    y={borrowCap}
+                                    stroke="var(--accent-red)"
+                                    strokeDasharray="4 4"
+                                    strokeWidth={1.5}
+                                    label={{
+                                        value: `Cap ${formatTokenAxis(borrowCap)}`,
+                                        position: 'right',
+                                        fill: 'var(--accent-red)',
+                                        fontSize: 9,
+                                    }}
+                                />
+                            )}
+                            <Area
+                                type="monotone"
+                                dataKey="borrowed"
+                                stroke="var(--accent-blue)"
+                                strokeWidth={1.5}
+                                fillOpacity={1}
+                                fill="url(#capBorrowGrad)"
+                                name="Borrowed"
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                )}
+            </ChartWrapper>
+
+            {truncated && (
+                <p className="col-span-full text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                    Note: history capped at the most recent 1,000 on-chain events.
+                    Very active reserves may show a shorter window than selected.
+                </p>
+            )}
+        </div>
+    );
+}
+
+// Compact axis formatter that handles both small (sub-thousand) and large (M / B) numbers.
+function formatTokenAxis(v: number): string {
+    if (v >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
+    if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+    if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
+    return v.toFixed(0);
+}
+
+function ChartSpinner() {
+    return (
+        <div className="h-full flex items-center justify-center text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            Loading…
+        </div>
+    );
+}
+
+function UnavailableMessage({ reason }: { reason: string }) {
+    return (
+        <div className="h-full flex items-center justify-center text-[11px] px-4 text-center" style={{ color: 'var(--text-muted)' }}>
+            {reason}
+        </div>
+    );
+}
+
+/**
+ * Visual progress bar for a reserve's cap — current fill + remaining headroom.
+ * Pairs with CapHistoryChart below for the time series.
+ * Color shifts to amber past 75% and red past 95%.
  */
 function CapUsageCard({
     label, current, cap, symbol, capReached, accent,
