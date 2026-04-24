@@ -14,7 +14,7 @@ import { ErrorState } from '@/components/aave-dashboard/ErrorState';
 import { TuiDivider } from '@/components/aave-dashboard/TuiPanel';
 import ChartWrapper from '@/components/aave-dashboard/ChartWrapper';
 import { formatCurrency, formatAddress, formatPercentage } from '@/lib/aave/helpers';
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from 'recharts';
 
 const CHAIN_LABEL: Record<string, { name: string; chainId: number; explorer: string }> = {
     ethereum:  { name: 'Ethereum',  chainId: 1,      explorer: 'https://etherscan.io' },
@@ -234,6 +234,100 @@ function MarketDetailInner({ params }: PageProps) {
                         />
                         <Area type="monotone" dataKey="supplyAPY" stroke="var(--accent-green)" strokeWidth={1.5} fillOpacity={1} fill="url(#colorSupplyApy)" name="Supply APY" />
                         <Area type="monotone" dataKey="borrowAPY" stroke="var(--accent-blue)" strokeWidth={1.5} fillOpacity={1} fill="url(#colorBorrowApy)" name="Borrow APY" />
+                    </AreaChart>
+                </ResponsiveContainer>
+            </ChartWrapper>
+
+            {/* Utilization history chart — derived from APY history.
+                Aave invariant: supplyAPY = borrowAPY × utilization × (1 − reserveFactor).
+                Solving for utilization gives us a usable historical series even though
+                AaveKit doesn't expose one directly. Clamps to [0, 1] for sanity. */}
+            <ChartWrapper
+                title="Utilization Rate"
+                badge={`Last ${window === '7' ? 'week' : window === '30' ? 'month' : window === '180' ? '6 months' : 'year'}`}
+                timeRanges={[7, 30, 180, 365]}
+                selectedRange={parseInt(window, 10)}
+                onRangeChange={(r) => setWindow(r.toString())}
+                dataSource="Derived: utilization = supplyAPY / (borrowAPY × (1 − reserveFactor)). The reserveFactor used is the current value, so historical periods where the reserve factor differed will be slightly off."
+                legend={[
+                    { label: 'Utilization', color: 'var(--accent-orange)' },
+                    { label: `Optimal (${optimalUsage.toFixed(0)}%)`, color: 'var(--accent-yellow)' },
+                ]}
+                height="h-56"
+            >
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                        data={(data.apyHistory || []).map((entry: any) => {
+                            const supply = entry.supplyAPY ?? 0;
+                            const borrow = entry.borrowAPY ?? 0;
+                            const denom = borrow * (1 - reserveFactor / 100);
+                            let util = denom > 0 ? (supply / denom) * 100 : 0;
+                            // Clamp to [0, 100]. Slight overshoot can happen when supply
+                            // and borrow rates briefly desync between snapshots.
+                            if (util < 0) util = 0;
+                            if (util > 100) util = 100;
+                            return { date: entry.date, utilization: util };
+                        })}
+                        margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                    >
+                        <defs>
+                            <linearGradient id="colorUtil" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="var(--accent-orange)" stopOpacity={0.18} />
+                                <stop offset="95%" stopColor="var(--accent-orange)" stopOpacity={0} />
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                        <XAxis
+                            dataKey="date"
+                            tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            tick={{ fontSize: 10, fill: '#6B7280' }}
+                            axisLine={{ stroke: 'rgba(0,0,0,0.1)' }}
+                            tickLine={false}
+                            minTickGap={40}
+                        />
+                        <YAxis
+                            domain={[0, 100]}
+                            tickFormatter={(value) => `${value.toFixed(0)}%`}
+                            tick={{ fontSize: 10, fill: '#6B7280' }}
+                            axisLine={false}
+                            tickLine={false}
+                        />
+                        <Tooltip
+                            contentStyle={{
+                                background: 'var(--card)',
+                                border: '1px solid var(--border-bright)',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                color: 'var(--foreground)',
+                            }}
+                            formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(2)}%`, '']}
+                            labelFormatter={(label) => new Date(label).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit' })}
+                        />
+                        {/* Optimal usage threshold — above this line the kinked rate model
+                            switches to slope2 and borrow rates ramp aggressively. */}
+                        {optimalUsage > 0 && (
+                            <ReferenceLine
+                                y={optimalUsage}
+                                stroke="var(--accent-yellow)"
+                                strokeDasharray="4 4"
+                                strokeWidth={1.5}
+                                label={{
+                                    value: `Optimal ${optimalUsage.toFixed(0)}%`,
+                                    position: 'right',
+                                    fill: 'var(--accent-yellow)',
+                                    fontSize: 9,
+                                }}
+                            />
+                        )}
+                        <Area
+                            type="monotone"
+                            dataKey="utilization"
+                            stroke="var(--accent-orange)"
+                            strokeWidth={1.5}
+                            fillOpacity={1}
+                            fill="url(#colorUtil)"
+                            name="Utilization"
+                        />
                     </AreaChart>
                 </ResponsiveContainer>
             </ChartWrapper>
