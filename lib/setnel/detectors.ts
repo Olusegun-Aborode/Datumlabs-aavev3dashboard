@@ -30,9 +30,30 @@ type Overview = {
   revenueHistory?: { date: string; supplyRevenue: number; protocolRevenue: number }[];
 };
 
-type Markets = {
-  markets?: { totalBorrowBalanceUSD?: number; totalValueLockedUSD?: number }[];
+type Market = {
+  totalBorrowBalanceUSD?: number;
+  totalValueLockedUSD?: number;
+  inputTokenPriceUSD?: number;
+  chain?: string;
+  inputToken?: { symbol?: string; address?: string };
 };
+type Markets = { markets?: Market[] };
+
+// USD stablecoins we expect to hold their $1 peg. Deliberately EXCLUDES
+// yield-bearing tokens (sUSDe, sDAI, sUSDS — these accrue value, not pegged)
+// and non-USD stables (EURC, EURe, agEUR — pegged to other currencies).
+const STABLES = new Set([
+  'USDC', 'USDT', 'DAI', 'USDS', 'GHO', 'FRAX', 'LUSD', 'sUSD', 'USDe',
+  'PYUSD', 'USDC.e', 'crvUSD', 'USD₮0', 'USDtb', 'RLUSD', 'USDbC',
+]);
+// Ignore normal drift; a true $1 stable beyond this is a real depeg signal.
+const DEPEG_PCT = 1;
+
+// Aave chain key → DeFiLlama coins chain slug (most match; map the exceptions).
+const LLAMA_CHAIN: Record<string, string> = {
+  avalanche: 'avax', bnb: 'bsc', zksync: 'era',
+};
+const llamaChain = (c: string) => LLAMA_CHAIN[c] ?? c;
 
 type Liquidations = {
   aggregations: { totalLiquidatedUSD: number; totalCount: number };
@@ -361,6 +382,90 @@ defineDetector<Markets>({
       ];
     }
     return [];
+  },
+});
+
+// 11) Stablecoin depeg — a stablecoin reserve's oracle price drifts from $1.
+//     Uses the price Aave itself reads, so it reflects what the protocol sees.
+defineDetector<Markets>({
+  id: 'aave.stablecoin-depeg',
+  label: 'Stablecoin price deviates from $1',
+  category: 'depegging',
+  severity: 'critical',
+  source: async () => {
+    const r = await fetch(`${baseUrl()}/api/aave/markets?pageSize=500`, { cache: 'no-store' });
+    return r.json();
+  },
+  detect: (m) => {
+    const events = [];
+    const seen = new Set<string>();
+    for (const x of m.markets ?? []) {
+      const sym = x.inputToken?.symbol;
+      const price = x.inputTokenPriceUSD;
+      const tvl = x.totalValueLockedUSD ?? 0;
+      if (!sym || !STABLES.has(sym) || !price || tvl < 1_000_000) continue;
+      const key = `${sym}:${x.chain}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const devPct = (price - 1) * 100;
+      if (Math.abs(devPct) > DEPEG_PCT) {
+        events.push({
+          message: `${sym} on ${x.chain} at $${price.toFixed(4)} (${devPct > 0 ? '+' : ''}${devPct.toFixed(2)}% off peg)`,
+          fingerprint: `aave.depeg:${key}`,
+          linkPath: '/',
+          payload: { symbol: sym, chain: x.chain, price, devPct, exposureUsd: tvl },
+        });
+      }
+    }
+    return events;
+  },
+});
+
+// 12) Oracle deviation — the price Aave reads vs an independent market price
+//     (DeFiLlama). A large gap means the oracle is stale or being manipulated.
+//     Checks the top markets by TVL to keep external calls light.
+defineDetector<Markets>({
+  id: 'aave.oracle-deviation',
+  label: 'Oracle price deviates from market by >2%',
+  category: 'oracles',
+  severity: 'warning',
+  source: async () => {
+    const r = await fetch(`${baseUrl()}/api/aave/markets?pageSize=500`, { cache: 'no-store' });
+    return r.json();
+  },
+  detect: async (m) => {
+    const top = (m.markets ?? [])
+      .filter((x) => x.inputToken?.address && x.chain && x.inputTokenPriceUSD && (x.totalValueLockedUSD ?? 0) > 5_000_000)
+      .sort((a, b) => (b.totalValueLockedUSD ?? 0) - (a.totalValueLockedUSD ?? 0))
+      .slice(0, 15);
+    if (top.length === 0) return [];
+
+    const keys = top.map((x) => `${llamaChain(x.chain!)}:${x.inputToken!.address!.toLowerCase()}`);
+    let prices: Record<string, { price: number; confidence?: number }> = {};
+    try {
+      const res = await fetch(`https://coins.llama.fi/prices/current/${keys.join(',')}`, { cache: 'no-store' });
+      prices = (await res.json())?.coins ?? {};
+    } catch {
+      return [];
+    }
+
+    const events = [];
+    for (const x of top) {
+      const key = `${llamaChain(x.chain!)}:${x.inputToken!.address!.toLowerCase()}`;
+      const market = prices[key];
+      if (!market || !market.price || (market.confidence ?? 1) < 0.9) continue;
+      const oracle = x.inputTokenPriceUSD!;
+      const devPct = ((oracle - market.price) / market.price) * 100;
+      if (Math.abs(devPct) > 2) {
+        events.push({
+          message: `${x.inputToken!.symbol} on ${x.chain}: oracle $${oracle.toFixed(2)} vs market $${market.price.toFixed(2)} (${devPct > 0 ? '+' : ''}${devPct.toFixed(1)}%)`,
+          fingerprint: `aave.oracle-deviation:${x.inputToken!.symbol}:${x.chain}`,
+          linkPath: '/',
+          payload: { symbol: x.inputToken!.symbol, chain: x.chain, oracle, market: market.price, devPct, exposureUsd: x.totalValueLockedUSD },
+        });
+      }
+    }
+    return events;
   },
 });
 
